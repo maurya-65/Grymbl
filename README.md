@@ -38,11 +38,24 @@ is thin, it says so rather than guessing.
 
 ## Documentation
 
-- **[How Grymbl Works](docs/how_grymbl_works.md)**: the whole system explained from scratch,
-  with a glossary.
-- **[Tech Stack](docs/tech_stack.md)**: what it's built with, the alternatives, and why.
-- [Prototype plan](docs/prototype_plan.md) and the
-  [v1.1 agent-awareness addendum](docs/v1.1_agent_awareness.md): the specs.
+**[The Grymbl Guide](docs/guide/README.md)** is the complete handover documentation. It
+explains everything from the underlying concepts up to how to run and extend the code:
+
+| Chapter | For |
+|---|---|
+| [1. Foundations](docs/guide/01_foundations.md) | Every technical concept, explained from zero |
+| [2. The Product](docs/guide/02_the_product.md) | What Grymbl is and why |
+| [3. How It Works](docs/guide/03_how_it_works.md) | Every part of the system in depth |
+| [4. Tech Stack](docs/guide/04_tech_stack.md) | Every tool: what it is, the alternatives, and why it was chosen |
+| [5. Codebase Tour](docs/guide/05_codebase_tour.md) | Every file and how data moves through the code |
+| [6. Developing](docs/guide/06_developing.md) | Setup, rules, and recipes for changing the code |
+| [7. Operating](docs/guide/07_operating.md) | Installing, the API key, costs, troubleshooting |
+| [8. History and Lessons](docs/guide/08_history_and_lessons.md) | Decisions made, bugs found, lessons learned |
+| [9. Status and Roadmap](docs/guide/09_status_and_roadmap.md) | What's proven, what's missing, what's next |
+| [Glossary](docs/guide/glossary.md) | Every term |
+
+The specifications the guide is based on: the [prototype plan](docs/prototype_plan.md) and the
+[v1.1 agent-awareness addendum](docs/v1.1_agent_awareness.md).
 
 ## How it works
 
