@@ -34,8 +34,11 @@ _TOKEN_FORMATS = re.compile(
     r")"
 )
 # `API_KEY=...`, `export GH_TOKEN=...`, `$env:DB_PASSWORD = ...`, `?token=...`, `"secret": "..."`
+# Matches start only at a name boundary, with bounded name length: unbounded `[\w.-]*` on
+# both sides backtracks quadratically through long word runs (minified code, base64).
 _SECRET_ASSIGNMENT = re.compile(
-    r"""(["']?[\w.-]*(?:key|token|secret|passw(?:or)?d|pwd|credential)[\w.-]*["']?\s*[:=]\s*)"""
+    r"""(?<![\w.-])(["']?[\w.-]{0,64}?(?:key|token|secret|passw(?:or)?d|pwd|credential)"""
+    r"""[\w.-]{0,64}["']?\s*[:=]\s*)"""
     rf"({_QUOTED_OR_BARE})",
     re.IGNORECASE,
 )

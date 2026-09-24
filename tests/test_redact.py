@@ -72,3 +72,13 @@ def test_masks_only_the_secret(raw: str, expected: str | None) -> None:
 )
 def test_leaves_ordinary_commands_alone(benign: str) -> None:
     assert redact(benign) == benign
+
+
+def test_long_lines_redact_in_linear_time() -> None:
+    import time
+
+    minified = "y" * 200_000 + " API_KEY=abc " + "Q29kZQ" * 20_000
+    started = time.perf_counter()
+    result = redact(minified)
+    assert time.perf_counter() - started < 1.0
+    assert f"API_KEY={REDACTED}" in result
