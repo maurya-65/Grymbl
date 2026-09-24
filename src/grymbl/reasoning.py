@@ -111,7 +111,12 @@ class SonnetAnalyst:
             log.warning("Rate limited analysing episode %s", evidence.episode_id)
             return None
         except anthropic.APIStatusError as error:
-            log.warning("API error %s analysing episode %s", error.status_code, evidence.episode_id)
+            log.warning(
+                "API error %s analysing episode %s: %s",
+                error.status_code,
+                evidence.episode_id,
+                error.message,
+            )
             return None
         except anthropic.APIConnectionError:
             log.warning("Network error analysing episode %s", evidence.episode_id)

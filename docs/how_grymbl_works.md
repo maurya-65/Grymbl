@@ -699,9 +699,10 @@ from most to least important:
 | **History cap** | 10 most recent prior episodes | Older history adds cost more than judgment |
 | **Usage logging** | every call | The watcher logs exact input and output tokens, so cost is visible |
 
-**Estimated cost:** about US$0.025 for a typical call, and about US$0.09 at most. On 5 CAD
-(about US$3.60) that's roughly 1 to 4 weeks of normal use, and never less than about
-1.5 days even if every call hits the cap at maximum size.
+**Measured cost:** the first real call (a small agent episode) used 1,367 input and 205 output
+tokens, about **US$0.005**. Even a call at the evidence cap stays under about US$0.09. At 25
+small calls a day, 5 CAD (about US$3.60) lasts roughly a month. The absolute worst case, every
+call at maximum size, is about 1.5 days.
 
 **A safety detail:** evidence is redacted *before* trimming. Cutting a diff first could slice a
 secret so short that the patterns no longer recognise it. A test checks every possible cut
@@ -835,8 +836,9 @@ which changes behaviour.
 Honest status, so nothing here surprises you.
 
 **Built but not yet proven in real use:**
-- **A real Sonnet analysis hasn't run yet.** Everything around it is tested with a stand-in,
-  and the one-call test is ready and waiting for an API key in your environment.
+- ~~A real Sonnet analysis~~ **Proven on 2026-09-24.** On a real agent episode, Sonnet
+  flagged the agent's claim ("no other code depends on `check`") as unverified, and correctly
+  stayed silent because no history backed a warning. Cost: about US$0.005.
 - **Hooks in everyday use.** Git hooks fire only once `grymbl` is installed on your system
   path (`uv tool install`). The bash hook was only syntax-checked, zsh wasn't tested (not
   installed here), and PowerShell was tested for sending but not in a live interactive prompt.
