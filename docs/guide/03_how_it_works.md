@@ -636,9 +636,51 @@ or `--all` to change) and opens it in your browser.
 | Why episodes escalated | One bar per Jev rule | Spots a rule that fires too often (see [roadmap](09_status_and_roadmap.md#known-gaps)) |
 | AI calls per day | Calls per day, with the daily cap line when it's close | Cost at a glance; hover for tokens and dollars |
 | Warnings | Every intervention with its episode, files, and rules | The things Grymbl actually said |
-| Episodes | Every episode, newest first. Click one for its full timeline: prompt, diffs, commands, test results, the agent's narrative, Jev's reasons, Sonnet's summary, assumptions | The evidence behind every judgment |
+| Episodes | Every episode, newest first, each with a one-line summary of what happened. Click one for a digest, its changed files, and its timeline ([below](#how-an-episode-is-shown)) | The evidence behind every judgment |
 | Hotspots | Files ranked by escalations | Where trouble lives |
 | Assumptions | Every recorded belief and its validity | What the memory believes |
+
+### How an episode is shown
+
+An episode can hold a hundred events. Printing them all, each with its full output, buries the
+story, so the page works like a newspaper: headline first, details on request.
+
+**Collapsed**, each episode is two lines:
+
+```
+Sep 24, 02:32 PM · 23 min   [escalated]   try B, plus saving toke usage.       Multiple modules
+                                          claude-code · 21 files +1,779 −774 · 32 commands (4 failed)
+                                          · tests failed → pass · 2 commits · pushed
+```
+
+The headline is the prompt that started the work; with no prompt it names the files edited or the
+first command run. The second line is the counts: who did the work, files and lines changed,
+commands (and how many failed), how tests ended up, commits, and whether it was pushed.
+
+**Opened**, it shows three parts, top to bottom:
+
+| Part | Shows |
+|---|---|
+| Digest | The warning (if any), what was asked, why Jev escalated it (or that it was routine), Sonnet's summary, recorded assumptions |
+| Files changed | One row per file with its lines added and removed and how many edits; click a row for the diff |
+| Timeline | One line per event: time, kind (`run`, `edit`, `tests`, `commit`, `reply`…), title. Click a line for its output. A failed command's line is red |
+
+Two small choices keep the timeline short. An agent's command is titled with the purpose the
+agent gave it ("Read the reference palette") instead of the raw command, which is one click away.
+And an agent's successful `Edit` is not listed separately, because the file change it caused
+already is.
+
+**One net diff per file.** If a file was saved 40 times in an episode, you want to see where it
+started and where it ended, not 40 small steps (like checking a bank balance at the start and end
+of the month rather than reading every transaction). Events only store each step's diff, not the
+whole file, so `report.py` rebuilds the file's earlier versions: it starts from the current
+[snapshot](#sensor-1-the-file-watcher) and *undoes* each recorded diff, newest first, until it
+reaches the episode's start and end. Then it diffs those two versions.
+
+Undoing a diff is checked line by line (`dedup.unapply`). If the file was changed while `watch`
+wasn't running, the snapshot no longer matches the recorded history, and the check fails rather
+than guessing. That file then shows its edits one after another, with a note saying so. An
+episode whose edits were all undone shows "no net change".
 
 **Built to the dataviz method:** thin columns with 4px rounded ends and a 2px gap between stacked
 segments; hairline grids; a legend whenever there are two series; hover tooltips (value first,

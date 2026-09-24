@@ -11,12 +11,13 @@ import pytest
 
 from grymbl.cli import main
 from grymbl.config import Settings
-from grymbl.events import Event, EventKind
+from grymbl.events import Event, EventKind, utcnow
 from grymbl.pipeline import Pipeline
 from grymbl.redact import REDACTED
 from grymbl.report import MAX_DISPLAY_CHARS, build_report
+from grymbl.sensors.files import FileSensor
 from grymbl.store import Store
-from tests.helpers import at, change
+from tests.helpers import agent_event, at, change, command, ran_tests
 from tests.test_pipeline import FakeAnalyst, RecordingSink
 
 
@@ -54,7 +55,7 @@ def test_report_contains_episodes_rules_warnings_and_cost(store: Store, settings
     assert episode["assumptions"] == [
         {"statement": "auth tokens expire after 1h", "validity": "unverified"}
     ]
-    assert episode["events"][0]["title"].startswith("Changed app/auth.py")
+    assert episode["events"][0]["title"] == "Edited app/auth.py"
     [call] = data["calls"]
     assert call["costUsd"] == pytest.approx(0.004)
 
@@ -96,6 +97,67 @@ def test_since_limits_the_range(store: Store, settings: Settings) -> None:
     data = _data(build_report(store, settings, at(10), at(60), 1))
     assert data["episodes"] == []
     assert data["calls"] == []
+
+
+def _save(sensor: FileSensor, settings: Settings, text: str) -> None:
+    target = settings.repo_root / "app.py"
+    target.write_text(text, encoding="utf-8")
+    sensor.on_changed(target)
+
+
+def test_repeated_edits_to_a_file_become_one_net_diff(store: Store, settings: Settings) -> None:
+    sensor = FileSensor(store, settings, "dev")
+    for text in ("x = 1\n", "x = 2\n", "x = 2\ny = 3\n"):
+        _save(sensor, settings, text)
+    Pipeline(store, settings, None, RecordingSink()).tick(utcnow())
+
+    [row] = _data(build_report(store, settings, None, utcnow(), None))["episodes"][0]["changes"]
+    assert (row["path"], row["edits"], row["net"]) == ("app.py", 3, True)
+    assert (row["added"], row["removed"]) == (2, 0)
+    assert "x = 1" not in row["diff"]  # an intermediate state, not part of the net change
+
+
+def test_drifted_history_falls_back_to_each_edit(store: Store, settings: Settings) -> None:
+    sensor = FileSensor(store, settings, "dev")
+    for text in ("x = 1\n", "x = 2\n"):
+        _save(sensor, settings, text)
+    Pipeline(store, settings, None, RecordingSink()).tick(utcnow())
+    # Edited while watch was stopped: the snapshot moves on with no event recorded.
+    (settings.repo_root / "app.py").write_text("x = 99\n", encoding="utf-8")
+    sensor.resync()
+
+    [row] = _data(build_report(store, settings, None, utcnow(), None))["episodes"][0]["changes"]
+    assert (row["edits"], row["net"]) == (2, False)
+    assert "+x = 1" in row["diff"] and "+x = 2" in row["diff"]
+
+
+def test_episode_stats_and_timeline_skip_echoed_agent_edits(
+    store: Store, settings: Settings
+) -> None:
+    for event in (
+        agent_event(EventKind.AGENT_TOOL, 0, tool="Edit", failed=False),
+        change("app/auth.py", 0.1),
+        command("pytest", 1, exit_code=1),
+        ran_tests(2, failed=1),
+        ran_tests(3, failed=0),
+    ):
+        store.add_event(event)
+    Pipeline(store, settings, None, RecordingSink()).tick(at(4))
+
+    [episode] = _data(build_report(store, settings, None, at(5), None))["episodes"]
+    assert episode["stats"] == {
+        "commands": 1,
+        "failedCommands": 1,
+        "tests": "fixed",
+        "commits": 0,
+        "pushed": False,
+    }
+    assert [event["kind"] for event in episode["events"]] == [
+        "file_changed",
+        "command",
+        "test_run",
+        "test_run",
+    ]
 
 
 def test_report_command_writes_the_file(

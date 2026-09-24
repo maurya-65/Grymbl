@@ -97,21 +97,50 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .badge.escalated { border-color: var(--accent); color: var(--ink); }
 .badge.warned::before { content: "\26A0\FE0E  "; }
 .episode { margin-bottom: 6px; padding: 0; }
-.episode > summary { list-style: none; cursor: pointer; padding: 10px 14px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
-.episode > summary::-webkit-details-marker { display: none; }
+.episode > summary { list-style: none; cursor: pointer; padding: 10px 14px; }
+.episode > summary::-webkit-details-marker, .row > summary::-webkit-details-marker { display: none; }
 .episode > summary:hover { background: var(--hover); border-radius: 12px; }
-.episode .when { color: var(--ink-2); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 110px; }
-.episode .what { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
-.episode .body { padding: 0 14px 14px; border-top: 1px solid var(--border); }
-.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 12px 0; font-size: 13px; }
+.episode .head { display: grid; grid-template-columns: 196px 76px minmax(0, 1fr) auto; gap: 2px 10px; align-items: baseline; }
+.episode .when { color: var(--ink-2); font-size: 12px; font-variant-numeric: tabular-nums; }
+.episode .badge { justify-self: start; }
+.episode .what { font-weight: 500; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.episode .chips { text-align: right; }
+.episode .line2 { grid-column: 3 / -1; color: var(--ink-2); font-size: 12px; }
+@media (max-width: 640px) {
+  .episode .head { grid-template-columns: max-content minmax(0, 1fr); }
+  .episode .what, .episode .line2 { grid-column: 1 / -1; }
+  .episode .chips { grid-column: 1 / -1; text-align: left; }
+}
+.line2 .fail, .row .fail { color: var(--critical); font-weight: 600; }
+.line2 .ok { color: var(--good); font-weight: 600; }
+.episode .body { padding: 4px 14px 14px; border-top: 1px solid var(--border); }
+.section { color: var(--ink-2); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin: 18px 0 6px; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 12px 0 0; font-size: 13px; }
 .kv dt { color: var(--ink-2); }
-.kv dd { margin: 0; overflow-wrap: anywhere; }
-.timeline { list-style: none; margin: 8px 0 0; padding: 0; }
-.timeline li { padding: 8px 0; border-top: 1px solid var(--border); }
-.timeline .ev-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
-.timeline .ev-time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.timeline .ev-title { overflow-wrap: anywhere; }
-.timeline .ev-title.failed::after { content: "  failed"; color: var(--critical); font-size: 12px; font-weight: 600; }
+.kv dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.callout { border-left: 3px solid var(--warning); background: var(--hover); border-radius: 0 8px 8px 0; padding: 8px 12px; margin: 12px 0 0; }
+.rows { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.row { border-top: 1px solid var(--border); }
+.row:first-child { border-top: 0; }
+.row > summary, .row > .line { list-style: none; display: grid; gap: 10px; align-items: baseline; padding: 5px 10px; font-size: 13px; }
+.row > summary { cursor: pointer; }
+.row > summary:hover { background: var(--hover); }
+.row > summary::after { content: "\25B8"; color: var(--muted); }
+.row[open] > summary::after { content: "\25BE"; }
+.row > .line::after { content: ""; }
+.row > .detail { padding: 0 10px 10px; }
+.row .note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+.files .row > summary, .files .row > .line { grid-template-columns: minmax(0, 1fr) max-content max-content 12px; }
+.events .row > summary, .events .row > .line { grid-template-columns: 64px 52px minmax(0, 1fr) max-content 12px; }
+.row .path, .row .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .path { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+.row .num, .row .time { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 12px; }
+.row .time { color: var(--muted); }
+.row .kind { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.row .meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.add-n { color: var(--good); }
+.del-n { color: var(--critical); }
+.ep-foot { color: var(--muted); font-size: 12px; margin-top: 14px; }
 pre { background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin: 6px 0 0;
   font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-x: auto; white-space: pre; max-height: 420px; }
 pre .add { background: var(--add-bg); display: block; }
@@ -461,6 +490,58 @@ footer { color: var(--muted); font-size: 12px; margin-top: 40px; }
       el("div", {}, ...ep.rules.map((r) => el("span", { class: "chip", text: RULE_LABEL[r] || r }))))));
   }
 
+  const KIND_LABEL = {
+    file_changed: "edit", file_deleted: "delete", command: "run", commit: "commit", push: "push",
+    test_run: "tests", agent_prompt: "ask", agent_tool: "agent", agent_turn_end: "reply",
+  };
+  function duration(ep) {
+    const minutes = Math.round((new Date(ep.end) - new Date(ep.start)) / 60000);
+    if (minutes < 1) return "under a minute";
+    if (minutes < 60) return `${minutes} min`;
+    return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+  }
+  function plural(n, word) { return `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`; }
+  function lineCounts(added, removed) {
+    return el("span", { class: "num" }, el("span", { class: "add-n", text: `+${added.toLocaleString()}` }), " ",
+      el("span", { class: "del-n", text: `−${removed.toLocaleString()}` }));
+  }
+  // A <details> row whose body is only built when first opened: long diffs stay cheap.
+  function lazyRow(cells, build) {
+    if (!build) return el("div", { class: "row" }, el("div", { class: "line" }, ...cells));
+    const row = el("details", { class: "row" }, el("summary", {}, ...cells));
+    row.addEventListener("toggle", () => {
+      if (row.open && !row.dataset.rendered) { row.append(el("div", { class: "detail" }, ...build())); row.dataset.rendered = "1"; }
+    });
+    return row;
+  }
+  // The collapsed row's second line: what actually happened, in counts.
+  function statsLine(ep) {
+    const s = ep.stats, parts = [];
+    const add = (...nodes) => { if (parts.length) parts.push(" · "); parts.push(...nodes); };
+    add(ep.agent || "human");
+    if (ep.changes.length) {
+      const added = ep.changes.reduce((sum, c) => sum + c.added, 0), removed = ep.changes.reduce((sum, c) => sum + c.removed, 0);
+      add(`${plural(ep.changes.length, "file")} `, el("span", { class: "add-n", text: `+${added.toLocaleString()}` }), " ",
+        el("span", { class: "del-n", text: `−${removed.toLocaleString()}` }));
+    }
+    if (s.commands) add(plural(s.commands, "command"), s.failedCommands ? el("span", { class: "fail", text: ` (${s.failedCommands} failed)` }) : "");
+    if (s.tests === "passing") add(el("span", { class: "ok", text: "tests pass" }));
+    if (s.tests === "fixed") add(el("span", { class: "fail", text: "tests failed" }), " → ", el("span", { class: "ok", text: "pass" }));
+    if (s.tests === "failing") add(el("span", { class: "fail", text: "tests failing" }));
+    if (s.commits) add(plural(s.commits, "commit"));
+    if (s.pushed) add("pushed");
+    return el("div", { class: "line2" }, ...parts);
+  }
+  function headline(ep) {
+    if (ep.intent) return ep.intent.trim().split("\n")[0];
+    if (ep.changes.length) {
+      const names = ep.changes.slice(0, 2).map((c) => c.path.split("/").pop());
+      return `Edited ${names.join(", ")}${ep.changes.length > 2 ? ` and ${ep.changes.length - 2} more` : ""}`;
+    }
+    const first = ep.events.find((ev) => ev.kind === "command");
+    return first ? `Ran ${first.title}` : "(no activity recorded)";
+  }
+
   function diffPre(text) {
     const pre = el("pre");
     for (const line of text.replace(/\n+$/, "").split("\n")) {
@@ -471,35 +552,58 @@ footer { color: var(--muted); font-size: 12px; margin-top: 40px; }
     }
     return pre;
   }
-  function episodeBody(ep) {
-    const body = el("div", { class: "body" });
-    const facts = [
-      ["Episode", ep.id],
-      ["When", `${when(ep.start)} → ${when(ep.end)}`],
-      ["Status", ep.status === "open" ? "open (still gathering)" : ep.escalated ? "escalated" : "routine"],
-      ["Work by", ep.agent ? `${ep.agent} (AI agent)` : "human"],
-      ["Files", ep.files.join(", ") || "none"],
-    ];
-    if (ep.reasons.length) facts.push(["Jev", ep.reasons.join("; ")]);
-    if (ep.summary) facts.push(["Sonnet", ep.summary]);
-    if (ep.intervention) facts.push(["Warning", ep.intervention]);
-    body.append(el("dl", { class: "kv" }, ...facts.flatMap(([k, v]) => [el("dt", { text: k }), el("dd", { text: v })])));
-    if (ep.intent) body.append(el("div", { class: "muted", text: "Intent (the prompt that started this work)" }), el("pre", { class: "prose", text: ep.intent }));
+  function digest(ep) {
+    const facts = [];
+    if (ep.intent) facts.push(["Asked", ep.intent.trim()]);
+    if (ep.status === "open") facts.push(["Triage", "Still gathering. Jev looks at it once the work goes quiet."]);
+    else if (ep.escalated) facts.push(["Why escalated", ep.reasons.join("; ") || ep.rules.map((r) => RULE_LABEL[r] || r).join(", ")]);
+    else facts.push(["Triage", "Routine. No Jev rule fired, so no AI call was made."]);
+    if (ep.escalated) facts.push(["Sonnet", ep.summary || "No analysis saved for this episode."]);
+    const nodes = [el("dl", { class: "kv" }, ...facts.flatMap(([k, v]) => [el("dt", { text: k }), el("dd", { text: v })]))];
+    if (ep.intervention) nodes.unshift(el("div", { class: "callout" }, el("strong", { text: "⚠︎ Warning  " }), ep.intervention));
     if (ep.assumptions.length) {
-      body.append(el("div", { class: "muted", text: "Assumptions recorded" }));
-      body.append(el("ul", {}, ...ep.assumptions.map((a) => el("li", { text: `[${a.validity}] ${a.statement}` }))));
+      nodes.push(el("div", { class: "section", text: "Assumptions recorded" }),
+        el("ul", {}, ...ep.assumptions.map((a) => el("li", { text: `${a.statement} (${a.validity})` }))));
     }
-    const list = el("ol", { class: "timeline", "aria-label": "Events" });
-    for (const ev of ep.events) {
-      const item = el("li", {}, el("div", { class: "ev-head" },
-        el("span", { class: "ev-time", text: new Date(ev.ts).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }) }),
-        // Test titles already say "N failed"; only commands need the marker.
-        el("span", { class: ev.failed && ev.kind !== "test_run" ? "ev-title failed" : "ev-title", text: ev.title })));
-      if (ev.body) item.append(ev.kind === "file_changed" ? diffPre(ev.body) : el("pre", { class: ev.kind === "agent_turn_end" || ev.kind === "agent_prompt" ? "prose" : null, text: ev.body }));
-      list.append(item);
-    }
-    body.append(list);
-    return body;
+    return nodes;
+  }
+  function filesSection(ep) {
+    if (!ep.changes.length) return [];
+    const rows = ep.changes.map((c) => {
+      const cells = [el("span", { class: "path", title: c.path, text: c.path }),
+        c.deleted ? el("span", { class: "num del-n", text: "deleted" }) : lineCounts(c.added, c.removed),
+        el("span", { class: "meta", text: plural(c.edits, "edit") })];
+      const build = c.diff || !c.deleted ? () => {
+        if (!c.diff) return [el("p", { class: "note", text: "No net change: the edits were undone before the episode ended." })];
+        const nodes = [diffPre(c.diff)];
+        if (!c.net && c.edits > 1) nodes.push(el("p", { class: "note", text: "Each edit is shown in turn. This file's recorded history didn't line up, so one combined diff couldn't be rebuilt." }));
+        return nodes;
+      } : null;
+      return lazyRow(cells, build);
+    });
+    return [el("div", { class: "section", text: `Files changed (${ep.changes.length})` }), el("div", { class: "rows files" }, ...rows)];
+  }
+  function timelineSection(ep) {
+    // The prompt that started the episode is already shown as "Asked".
+    const events = ep.events.filter((ev) => !(ev.kind === "agent_prompt" && ep.intent && ev.body === ep.intent.trim()));
+    if (!events.length) return [];
+    const rows = events.map((ev) => {
+      const failed = ev.failed && ev.kind === "command";
+      const cells = [
+        el("span", { class: "time", text: new Date(ev.ts).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) }),
+        el("span", { class: "kind", text: KIND_LABEL[ev.kind] || ev.kind }),
+        el("span", { class: ev.failed ? "title fail" : "title", title: ev.title, text: ev.title }),
+        el("span", { class: failed ? "meta fail" : "meta", text: ev.kind === "command" ? (failed ? `failed, ${ev.meta}` : "") : ev.meta }),
+      ];
+      const prose = ev.kind === "agent_turn_end" || ev.kind === "agent_prompt";
+      return lazyRow(cells, ev.body ? () => [ev.kind === "file_changed" ? diffPre(ev.body) : el("pre", { class: prose ? "prose" : null, text: ev.body })] : null);
+    });
+    return [el("div", { class: "section", text: `Timeline (${plural(events.length, "event")})` }), el("div", { class: "rows events" }, ...rows)];
+  }
+  function episodeBody(ep) {
+    const time = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return el("div", { class: "body" }, ...digest(ep), ...filesSection(ep), ...timelineSection(ep),
+      el("div", { class: "ep-foot", text: `Episode ${ep.id} · ${when(ep.start)} → ${time(ep.end)} · ${ep.agent ? `work by ${ep.agent} (AI agent)` : "work by a human"}` }));
   }
   function renderEpisodes(episodes) {
     const box = document.getElementById("episodes");
@@ -508,11 +612,12 @@ footer { color: var(--muted); font-size: 12px; margin-top: 40px; }
       const badge = ep.status === "open" ? el("span", { class: "badge", text: "open" })
         : ep.escalated ? el("span", { class: ep.intervention ? "badge escalated warned" : "badge escalated", text: ep.intervention ? "warned" : "escalated" })
         : el("span", { class: "badge", text: "routine" });
-      const headline = ep.intent ? ep.intent.split("\n")[0] : ep.files.join(", ") || "(commands only)";
       const details = el("details", { class: "card episode" },
-        el("summary", {}, el("span", { class: "when", text: when(ep.start) }), badge,
-          el("span", { class: "what", text: headline }),
-          ...ep.rules.map((r) => el("span", { class: "chip", text: RULE_LABEL[r] || r }))));
+        el("summary", {}, el("div", { class: "head" },
+          el("span", { class: "when", text: `${when(ep.start)} · ${duration(ep)}` }), badge,
+          el("span", { class: "what", title: headline(ep), text: headline(ep) }),
+          el("span", { class: "chips" }, ...ep.rules.map((r) => el("span", { class: "chip", text: RULE_LABEL[r] || r }))),
+          statsLine(ep))));
       details.addEventListener("toggle", () => {
         if (details.open && !details.dataset.rendered) { details.append(episodeBody(ep)); details.dataset.rendered = "1"; }
       });

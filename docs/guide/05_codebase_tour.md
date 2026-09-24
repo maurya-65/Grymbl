@@ -142,6 +142,8 @@ Each replaces only the secret part (group 2 of each pattern) with `[REDACTED]` v
 
 - **`content_hash(text)`**: SHA-256 fingerprint.
 - **`diff_change(path, old, new)`** → `FileChange(diff, added, removed)`.
+- **`unapply(new, diff)`**: the text a diff was made from, or `None` if `new` doesn't match it.
+  The report uses it to rebuild net diffs.
 - **`is_meaningful(line)`** and **`count_meaningful(text)`**: not blank, not a comment.
 
 ### imports.py
@@ -157,7 +159,7 @@ The **`Store`** class wraps one SQLite connection. The schema is `_SCHEMA` at th
 | Group | Methods |
 |---|---|
 | Notes | `get_meta`, `set_meta`, `count_call`, `calls_on` |
-| Events | `add_event` (returns the event with its ID), `unassigned_events`, `episode_events` |
+| Events | `add_event` (returns the event with its ID), `unassigned_events`, `episode_events`, `file_events_since` (the report's net diffs) |
 | Snapshots and the import graph | `snapshot`, `put_snapshot` (also stores imports), `delete_snapshot`, `known_files`, `import_graph` |
 | Episodes | `attach_event`, `open_episode_ids`, `close_episode`, `recent_episodes`, `episodes_since` |
 | Cost | `record_model_call`, `model_calls_since` |
@@ -201,6 +203,11 @@ Data shapes returned: `Snapshot`, `ClosedEpisode`, `PriorEpisode`, `EpisodeRow`,
 - **`build_report(store, settings, since, now, days)`**: gathers episodes (with their events,
   assumptions, Jev rules, and warnings) and model calls, redacts every displayed text, shortens
   huge diffs (`MAX_DISPLAY_CHARS`), and embeds it all as JSON into the template.
+- **`_net_changes(store, events)`**: each episode's net diff per file, rebuilt by undoing later
+  diffs from the current snapshot (`dedup.unapply`). Files whose history doesn't line up, or
+  whose edits interleave with another episode's, are left out.
+- **`_changes`, `_stats`, `_describe`**: the files table (net diff, or each edit in turn as the
+  fallback), the counts on the collapsed row, and each timeline line's title, status, and body.
 - **`_embed(data)`**: escapes `<`, `>`, `&` so no content can end the `<script>` block early.
 - **`templates/report.html`**: the page itself. Plain HTML, CSS (light/dark tokens), and vanilla
   JavaScript that draws the SVG charts, tooltips, tables, and filters. It inserts every string with
@@ -302,7 +309,7 @@ Each module has a matching test file in `tests/`:
 | Test file | Covers |
 |---|---|
 | `test_redact.py` | Every secret pattern, benign commands left alone, the speed guard |
-| `test_dedup.py` | Hashing, diffs, meaningful-line counting |
+| `test_dedup.py` | Hashing, diffs, meaningful-line counting, undoing a diff (and refusing when it doesn't fit) |
 | `test_imports.py` | Python and JS/TS import resolution; the `related` check |
 | `test_correlate.py` | Joining rules, time windows, the agent rules |
 | `test_jev.py` | Each of the 4 rules, including cases that must *not* fire |
@@ -312,7 +319,7 @@ Each module has a matching test file in `tests/`:
 | `test_pipeline.py` | Whole flows with a real SQLite database and a fake analyst; history; migration of old databases |
 | `test_cost_controls.py` | The evidence cap, never leaking part of a secret, the history cap, the effort setting, the daily cap |
 | `test_capture.py` | Hook entry points end to end; redaction before storage; missing-credential handling |
-| `test_report.py` | Report data completeness, redaction, `</script>` break-out protection, display shortening, date ranges, the command |
+| `test_report.py` | Report data completeness, redaction, `</script>` break-out protection, display shortening, date ranges, net diffs and their fallback, episode counts, the command |
 
 **Shared helpers:**
 - `tests/conftest.py` provides **fixtures**, pytest's name for ready-made test ingredients:

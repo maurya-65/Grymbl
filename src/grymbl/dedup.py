@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import difflib
 import hashlib
+import re
 from dataclasses import dataclass
 
 _COMMENT_PREFIXES = ("#", "//", "/*", "*", "--")
@@ -45,6 +46,43 @@ def diff_change(path: str, old: str | None, new: str) -> FileChange:
         if line.startswith("-") and not line.startswith("---") and is_meaningful(line[1:])
     )
     return FileChange(path=path, diff="".join(diff_lines), added=added, removed=removed)
+
+
+def unapply(new: str, diff: str) -> str | None:
+    """The text `diff` (from `diff_change`) was made from, or None if `new` doesn't match it.
+
+    Every context and added line is checked, so a snapshot that drifted from the recorded
+    history (say, edited while `grymbl watch` was stopped) fails instead of guessing.
+    """
+    new_lines = new.splitlines(keepends=True)
+    old_lines: list[str] = []
+    cursor = 0
+    hunks = _HUNK.split(diff)
+    # split() alternates: preamble, then (old_count, new_start, new_count, body) per hunk.
+    for i in range(1, len(hunks), 4):
+        old_count, start, new_count, body = hunks[i : i + 4]
+        # Unified ranges are 1-based, except an empty range names the line before it.
+        index = int(start) if new_count == "0" else int(start) - 1
+        before: list[str] = []
+        after: list[str] = []
+        for line in body.splitlines(keepends=True):
+            if line.startswith((" ", "-")):
+                before.append(line[1:])
+            if line.startswith((" ", "+")):
+                after.append(line[1:])
+            if not line.startswith((" ", "-", "+")):
+                return None
+        # A last line without a newline runs into the next diff line; the counts catch it.
+        if (len(before), len(after)) != (int(old_count or 1), int(new_count or 1)):
+            return None
+        if index < cursor or new_lines[index : index + len(after)] != after:
+            return None
+        old_lines += new_lines[cursor:index] + before
+        cursor = index + len(after)
+    return "".join(old_lines + new_lines[cursor:])
+
+
+_HUNK = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@[^\n]*\n", re.M)
 
 
 def count_meaningful(text: str) -> int:

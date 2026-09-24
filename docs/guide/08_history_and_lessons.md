@@ -95,7 +95,8 @@ changes behaviour, and each is worth knowing before changing it.
 | D31 | A local HTML **report** file, not a dashboard server or hosted page | CLI-only views; a live local server; a Next.js dashboard | Enough to evaluate the prototype; zero infrastructure; nothing leaves the machine. The Next.js dashboard stays at scale (plan §9.2) |
 | D32 | The report blocks all network access (CSP) and inserts text only via `textContent` | Trusting the data | Diffs and prompts are untrusted content |
 | D33 | Token usage and cost saved per call, priced at call time | Only logging it | Cost history needs data; prices can change |
-| D34 | Jev stores rule IDs, not just sentences | Parse the sentences | Charts need stable categories |
+| D34 | The report shows one net diff per file, rebuilt by undoing recorded diffs from the snapshot, and falls back to each edit when the history doesn't fit | Storing full file content with every event; always listing every edit | Readable episodes without changing the sensors or growing the database; strict checks mean it never shows a wrong diff |
+| D35 | Jev stores rule IDs, not just sentences | Parse the sentences | Charts need stable categories |
 
 ---
 

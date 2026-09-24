@@ -247,6 +247,14 @@ class Store:
         ).fetchall()
         return [_event_from_row(row) for row in rows]
 
+    def file_events_since(self, since: datetime) -> list[Event]:
+        """File changes and deletions from `since` on, in the order snapshots were updated."""
+        rows = self._conn.execute(
+            "SELECT * FROM events WHERE kind IN (?, ?) AND ts >= ? ORDER BY event_id",
+            (EventKind.FILE_CHANGED.value, EventKind.FILE_DELETED.value, since.isoformat()),
+        ).fetchall()
+        return [_event_from_row(row) for row in rows]
+
     # --- snapshots & FILE nodes -------------------------------------------
 
     def snapshot(self, file_path: str) -> Snapshot | None:
