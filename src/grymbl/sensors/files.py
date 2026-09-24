@@ -65,6 +65,9 @@ class FileSensor:
         path = self._repo_path(absolute)
         if path is None:
             return None
+        if absolute.exists():
+            # Atomic save (write temp, swap in): some platforms report the swap as a delete.
+            return self.on_changed(absolute)
         previous = self._store.snapshot(path)
         if previous is None:
             return None

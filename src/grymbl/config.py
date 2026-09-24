@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path, PurePosixPath
@@ -34,6 +35,8 @@ IGNORED_NAMES = frozenset(
     {"package-lock.json", "pnpm-lock.yaml", "yarn.lock", "uv.lock", "poetry.lock", "go.sum"}
 )
 IGNORED_SUFFIXES = (".swp", ".swx", ".tmp", "~", ".pyc", ".log")
+# Atomic-write temp files, e.g. Claude Code's `auth.py.tmp.4120.e60d016d67e1`.
+_ATOMIC_TEMP = re.compile(r"\.tmp\.[\w.]+$")
 
 
 @dataclass(frozen=True)
@@ -87,4 +90,8 @@ def is_ignored(repo_path: str) -> bool:
     if any(part in IGNORED_DIRS for part in parts[:-1]):
         return True
     name = parts[-1] if parts else ""
-    return name in IGNORED_NAMES or name.endswith(IGNORED_SUFFIXES)
+    return (
+        name in IGNORED_NAMES
+        or name.endswith(IGNORED_SUFFIXES)
+        or _ATOMIC_TEMP.search(name) is not None
+    )
