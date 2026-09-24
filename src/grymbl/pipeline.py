@@ -62,6 +62,8 @@ class Pipeline:
                 had_fail_retry_pass=decision.had_fail_retry_pass,
                 escalated=decision.escalate,
                 files=files,
+                agent=episode.agent,
+                intent=episode.intent,
             )
         )
         if analysis is not None and analysis.assumptions:

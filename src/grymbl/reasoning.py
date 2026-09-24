@@ -34,7 +34,13 @@ should hear anything. Staying silent is a successful outcome, not a failure to a
 an intervention only when this episode resembles something consequential in the provided \
 history, and cite that history in the message. Otherwise leave intervention null.
 
-Evidence rule: {EVIDENCE_RULE}"""
+Evidence rule: {EVIDENCE_RULE}
+
+Some episodes are a coding agent's work, opened by a user prompt (the intent). What the \
+agent said about its work is a claim, not evidence: never treat its explanations as \
+support for a conclusion. Compare them with what the events show. A gap between what the \
+agent said and what it did (e.g. "tests pass" with no passing test run, or "only touched \
+the parser" with changes elsewhere) is itself an observed fact worth recording."""
 
 
 class EpisodeAnalysis(BaseModel):
@@ -67,9 +73,12 @@ class SonnetAnalyst:
     def __init__(self, model: str) -> None:
         self._model = model
         self._client = anthropic.Anthropic()
+        self._has_credentials = True
 
     def analyze(self, evidence: EpisodeEvidence) -> EpisodeAnalysis | None:
         """Ask Sonnet about one episode; None if the call fails or is refused."""
+        if not self._has_credentials:
+            return None
         try:
             response = self._client.messages.parse(
                 model=self._model,
@@ -78,6 +87,13 @@ class SonnetAnalyst:
                 messages=[{"role": "user", "content": render_evidence(evidence)}],
                 output_format=EpisodeAnalysis,
             )
+        except (anthropic.CredentialsError, TypeError) as error:
+            # With no credentials at all, the SDK raises TypeError rather than an API error.
+            if isinstance(error, TypeError) and "authentication" not in str(error):
+                raise
+            log.error("No Anthropic credentials; escalations are recorded without analysis")
+            self._has_credentials = False
+            return None
         except anthropic.AuthenticationError:
             log.error("Anthropic credentials missing or invalid; set ANTHROPIC_API_KEY")
             return None
@@ -115,6 +131,8 @@ def render_evidence(evidence: EpisodeEvidence) -> str:
             f"- episode {prior.episode_id} at {prior.timestamp_start:%Y-%m-%d %H:%M} "
             f"on {', '.join(prior.files)}"
         )
+        if prior.intent:
+            lines.append(f"  intent: {prior.intent}")
         lines.append(f"  summary: {prior.summary or '(no analysis recorded)'}")
         for statement, validity in prior.assumptions:
             lines.append(f"  assumption [{validity}]: {statement}")
@@ -130,6 +148,13 @@ def _render_event(event: Event) -> str:
             return f"{at} changed {event.files[0]}\n{payload['diff']}"
         case EventKind.FILE_DELETED:
             return f"{at} deleted {event.files[0]} ({payload['removed']} lines of logic)"
+        case EventKind.COMMAND if "agent" in payload:
+            said = f"  # {payload['description']}" if payload["description"] else ""
+            output = f"\n{payload['output_tail']}" if payload["output_tail"] else ""
+            return (
+                f"{at} {payload['agent']} ran $ {payload['command']}  "
+                f"(exit {payload['exit_code']}){said}{output}"
+            )
         case EventKind.COMMAND:
             return f"{at} $ {payload['command']}  (exit {payload['exit_code']})"
         case EventKind.COMMIT:
@@ -143,3 +168,12 @@ def _render_event(event: Event) -> str:
                 f"{at} {payload['runner']} run: {payload['passed']} passed, "
                 f"{payload['failed']} failed{failures}"
             )
+        case EventKind.AGENT_PROMPT:
+            return f"{at} user prompt to {payload['agent']} (intent):\n{payload['prompt']}"
+        case EventKind.AGENT_TOOL if "plan" in payload:
+            return f"{at} {payload['agent']} updated its plan:\n{payload['plan']}"
+        case EventKind.AGENT_TOOL:
+            status = " (failed)" if payload.get("failed") else ""
+            return f"{at} {payload['agent']} used {payload['tool']} on {event.files[0]}{status}"
+        case EventKind.AGENT_TURN_END:
+            return f"{at} {payload['agent']} said (claims, not evidence):\n{payload['narrative']}"

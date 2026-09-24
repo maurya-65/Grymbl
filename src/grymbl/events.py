@@ -15,6 +15,10 @@ class EventKind(StrEnum):
     COMMIT = "commit"
     PUSH = "push"
     TEST_RUN = "test_run"
+    # Coding-agent activity (v1.1). Agent shell commands are recorded as COMMAND.
+    AGENT_PROMPT = "agent_prompt"
+    AGENT_TOOL = "agent_tool"
+    AGENT_TURN_END = "agent_turn_end"
 
 
 @dataclass(frozen=True)

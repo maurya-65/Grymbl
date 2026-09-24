@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 from collections.abc import Callable, Sequence
@@ -11,6 +12,7 @@ from pathlib import Path
 
 from grymbl.config import Settings, find_repo_root
 from grymbl.sensors import developer_name
+from grymbl.sensors.agent import capture_hook, install_claude_hooks
 from grymbl.sensors.files import FileSensor
 from grymbl.sensors.git import (
     capture_commit,
@@ -22,7 +24,7 @@ from grymbl.sensors.git import (
 from grymbl.sensors.terminal import capture_command
 from grymbl.sensors.tests import UnsupportedRunnerError, run_and_capture
 from grymbl.store import Store
-from grymbl.watch import watch
+from grymbl.watch import AlreadyWatchingError, watch
 
 _Capture = Callable[[Store, Path], object]
 
@@ -41,6 +43,9 @@ def _parser() -> argparse.ArgumentParser:
 
     init = commands.add_parser("init", help="start watching a repository")
     init.add_argument("path", nargs="?", default=".", type=Path)
+    init.add_argument(
+        "--no-agent-hooks", action="store_true", help="don't configure Claude Code hooks"
+    )
     init.set_defaults(handler=_init)
 
     run = commands.add_parser("watch", help="run the watcher (foreground)")
@@ -69,6 +74,9 @@ def _parser() -> argparse.ArgumentParser:
     git.add_argument("hook", choices=("post-commit", "pre-push"))
     git.add_argument("hook_args", nargs="*")
     git.set_defaults(handler=_capture_git)
+
+    agent = commands.add_parser("capture-agent", help=argparse.SUPPRESS)
+    agent.set_defaults(handler=_capture_agent)
     return parser
 
 
@@ -88,6 +96,8 @@ def _init(args: argparse.Namespace) -> int:
     if is_git_repo(root):
         for note in install_hooks(root):
             print(f"git hooks: {note}")
+    if not args.no_agent_hooks:
+        print(install_claude_hooks(root))
     print(
         "\nNext:\n"
         "  1. Load the terminal hook in your shell profile:\n"
@@ -107,7 +117,11 @@ def _watch(args: argparse.Namespace) -> int:
         print("Not a Grymbl-watched repository. Run `grymbl init` first.", file=sys.stderr)
         return 1
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
-    watch(Settings(root))
+    try:
+        watch(Settings(root))
+    except AlreadyWatchingError as error:
+        print(f"grymbl: {error}", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -126,6 +140,8 @@ def _status(args: argparse.Namespace) -> int:
             f"{episode.timestamp_start:%Y-%m-%d %H:%M}  {episode.episode_id}  "
             f"{episode.status:<6}  {flag:<9}  {', '.join(episode.files) or '-'}"
         )
+        if episode.intent:
+            print(f"    {episode.agent} was asked: {episode.intent.splitlines()[0]}")
         if episode.summary:
             print(f"    {episode.summary}")
     return 0
@@ -175,13 +191,24 @@ def _capture_git(args: argparse.Namespace) -> int:
     )
 
 
-def _quietly(capture: _Capture) -> int:
+def _capture_agent(args: argparse.Namespace) -> int:
+    try:
+        hook = json.loads(sys.stdin.buffer.read().decode("utf-8", errors="replace"))
+    except json.JSONDecodeError:
+        return 0  # Never surface a hook error inside the agent's session.
+    start = Path(hook["cwd"]) if hook.get("cwd") else Path.cwd()
+    return _quietly(
+        lambda store, root: capture_hook(store, developer_name(store, root), root, hook), start
+    )
+
+
+def _quietly(capture: _Capture, start: Path | None = None) -> int:
     """Run a hook-triggered capture without ever disturbing the developer's shell or git.
 
     Outside a watched repo this is a no-op. Failures go to the repo's log file, never the
     terminal, and the exit code is always 0.
     """
-    root = find_repo_root(Path.cwd())
+    root = find_repo_root(start or Path.cwd())
     if root is None:
         return 0
     settings = Settings(root)

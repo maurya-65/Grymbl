@@ -56,6 +56,7 @@ sensors ──► events (SQLite) ──► episodes ──► Jev triage ──
 | Jev triage | `jev.py` | §6 |
 | Experience Graph | `store.py` | §7 |
 | Sonnet + evidence rule | `reasoning.py` | §11 |
+| Coding-agent capture (Claude Code) | `sensors/agent.py` | v1.1 |
 
 ## Setup
 
@@ -64,7 +65,7 @@ Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 ```sh
 uv tool install --editable .      # puts `grymbl` on PATH
 cd path/to/app-repo
-grymbl init                       # creates .grymbl/, baselines files, installs git hooks
+grymbl init                       # creates .grymbl/, baselines files, installs git + Claude Code hooks
 ```
 
 Load the terminal hook in your shell profile:
@@ -88,12 +89,27 @@ pytest needs `pytest-json-report` installed in the app's environment.
 
 Interventions are appended to `.grymbl/interventions.md` and echoed in the watcher's terminal.
 
+### Coding agents
+
+Most code is now written by agents, and an agent can do something a human can't: tell you what
+it intended and what it assumed. `grymbl init` adds hooks to the repo's local Claude Code
+settings (`.claude/settings.local.json`, kept out of git). For each agent turn, Grymbl then
+records the prompt, which is the episode's intent, along with every shell command and its exit
+code, every file edit, and the agent's written account of its work. Each prompt opens its own
+episode.
+
+What the agent says is treated as a claim, not evidence. Sonnet compares it with what the diffs
+and test runs show, and a mismatch between the two counts as a finding. Skip this with
+`grymbl init --no-agent-hooks`. See `docs/v1.1_agent_awareness.md` for the roadmap: agents
+recording their own assumptions over MCP, and warnings delivered to the agent itself.
+
 ## Privacy
 
 - Commands are captured only inside a repo that has a `.grymbl/` directory.
 - Secrets are masked before storage. The raw command is never written anywhere.
 - Commands typed with a leading space are skipped if your shell's history ignores them
   (`HISTCONTROL=ignorespace` in bash, `setopt HIST_IGNORE_SPACE` in zsh).
+- Agent prompts, commands, output, and narrative go through the same redaction before storage.
 - `.grymbl/` ignores itself in git.
 
 ## Development

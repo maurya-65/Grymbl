@@ -38,3 +38,9 @@ def command(text: str, minute: float, exit_code: int = 0) -> Event:
     return Event(
         EventKind.COMMAND, at(minute), "dev", payload={"command": text, "exit_code": exit_code}
     )
+
+
+def agent_event(kind: EventKind, minute: float, session: str = "s1", **payload: Any) -> Event:
+    return Event(
+        kind, at(minute), "dev", payload={"agent": "claude-code", "session_id": session, **payload}
+    )

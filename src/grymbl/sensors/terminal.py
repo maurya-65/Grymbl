@@ -14,9 +14,13 @@ from grymbl.store import Store
 _SELF_COMMANDS = ("grymbl capture-", "grymbl status", "grymbl shell-hook")
 
 
+def is_self_command(command: str) -> bool:
+    return command.startswith(_SELF_COMMANDS)
+
+
 def capture_command(store: Store, developer: str, raw_command: str, exit_code: int) -> Event | None:
     command = raw_command.strip()
-    if not command or command.startswith(_SELF_COMMANDS):
+    if not command or is_self_command(command):
         return None
     return store.add_event(
         Event(

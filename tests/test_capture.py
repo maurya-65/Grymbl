@@ -10,9 +10,10 @@ import pytest
 
 from grymbl.cli import main
 from grymbl.config import Settings
-from grymbl.reasoning import EpisodeEvidence, render_evidence
+from grymbl.reasoning import EpisodeEvidence, SonnetAnalyst, render_evidence
 from grymbl.redact import REDACTED
 from grymbl.store import Store
+from grymbl.watch import make_analyst
 from tests.helpers import at, command
 
 
@@ -61,3 +62,26 @@ def test_evidence_sent_to_model_is_redacted_again() -> None:
     assert "ghp_" not in rendered
     assert REDACTED in rendered
     assert at(0).strftime("%H:%M:%S") in rendered
+
+
+def test_missing_credentials_do_not_crash_the_watcher(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_PROFILE"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("ANTHROPIC_CONFIG_DIR", raising=False)
+    monkeypatch.setenv("HOME", "/nonexistent-grymbl-test")
+    monkeypatch.setenv("USERPROFILE", "/nonexistent-grymbl-test")
+    monkeypatch.setenv("XDG_CONFIG_HOME", "/nonexistent-grymbl-test")
+    monkeypatch.setenv("APPDATA", "/nonexistent-grymbl-test")
+    analyst = SonnetAnalyst("claude-sonnet-5")
+    evidence = EpisodeEvidence("e1", "dev", ("fail -> retry -> pass",), [command("ls", 0)], [])
+    assert analyst.analyze(evidence) is None
+    assert analyst.analyze(evidence) is None  # stays quiet after the first failure
+
+
+def test_unresolvable_credentials_do_not_crash_the_watcher(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_PROFILE"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("ANTHROPIC_CONFIG_DIR", "/nonexistent-grymbl-test")
+    assert make_analyst(Settings(Path())) is None

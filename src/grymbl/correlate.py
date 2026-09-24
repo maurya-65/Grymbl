@@ -1,5 +1,8 @@
 """Episode correlation: adaptive time window + file overlap by dependency (plan §4).
 
+Agent work (v1.1) has a firmer boundary: each prompt opens an episode, and everything the
+agent does in that session, plus any file change during its turn, belongs to it.
+
 Pure logic over in-memory episodes; the pipeline handles persistence.
 """
 
@@ -16,6 +19,7 @@ from grymbl.imports import ImportGraph, related
 # Events that describe what the developer is doing now rather than which code changed,
 # so they join the active episode even without a file relation.
 _CONTEXT_KINDS = frozenset({EventKind.COMMAND, EventKind.TEST_RUN, EventKind.PUSH})
+_FILE_KINDS = frozenset({EventKind.FILE_CHANGED, EventKind.FILE_DELETED})
 
 
 @dataclass
@@ -35,15 +39,43 @@ class OpenEpisode:
     def last_activity(self) -> datetime:
         return self.events[-1].timestamp
 
+    @property
+    def agent_session(self) -> str | None:
+        """Session id of the agent prompt that opened this episode, if any."""
+        for event in self.events:
+            if event.kind is EventKind.AGENT_PROMPT:
+                return str(event.payload["session_id"])
+        return None
+
+    @property
+    def agent(self) -> str | None:
+        return next((str(e.payload["agent"]) for e in self.events if "agent" in e.payload), None)
+
+    @property
+    def intent(self) -> str | None:
+        """The prompt that opened this episode, already redacted."""
+        for event in self.events:
+            if event.kind is EventKind.AGENT_PROMPT:
+                return str(event.payload["prompt"])
+        return None
+
+    @property
+    def agent_turn_active(self) -> bool:
+        return self.agent_session is not None and not any(
+            event.kind is EventKind.AGENT_TURN_END for event in self.events
+        )
+
 
 def deadline(episode: OpenEpisode, settings: Settings) -> datetime:
     """When the episode closes if nothing else happens.
 
-    Every related event slides the window forward; a failure widens it because the
-    developer is usually still reading output before the next change.
+    Every related event slides the window forward. A failure widens it because the
+    developer is usually still reading output, and so does an agent turn in progress,
+    because a long build or test run can sit between two tool calls.
     """
     last = episode.events[-1]
-    gap = settings.extended_gap if last.failed else settings.idle_gap
+    wide = last.failed or episode.agent_turn_active
+    gap = settings.extended_gap if wide else settings.idle_gap
     return last.timestamp + gap
 
 
@@ -65,8 +97,16 @@ def choose_episode(
         key=lambda ep: ep.last_activity,
         reverse=True,
     )
-    if not active:
+    if not active or event.kind is EventKind.AGENT_PROMPT:
         return None
+    if session := event.payload.get("session_id"):
+        for episode in active:
+            if episode.agent_session == session:
+                return episode
+    if event.kind in _FILE_KINDS:
+        for episode in active:
+            if episode.agent_turn_active:
+                return episode
     if not event.files:
         return active[0]
     for episode in active:

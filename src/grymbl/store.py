@@ -36,7 +36,9 @@ CREATE TABLE IF NOT EXISTS episodes (
     had_deletion        INTEGER NOT NULL DEFAULT 0,
     had_fail_retry_pass INTEGER NOT NULL DEFAULT 0,
     escalated           INTEGER NOT NULL DEFAULT 0,
-    status              TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed'))
+    status              TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+    agent               TEXT,  -- coding agent that did the work; NULL for human work (v1.1)
+    intent              TEXT   -- redacted prompt that opened an agent episode (v1.1)
 );
 
 CREATE TABLE IF NOT EXISTS events (
@@ -79,6 +81,9 @@ CREATE TABLE IF NOT EXISTS file_snapshots (
 );
 """
 
+# Columns added after v1, applied to databases created before them.
+_ADDED_COLUMNS = {"episodes": ("agent", "intent")}
+
 
 @dataclass(frozen=True)
 class Snapshot:
@@ -94,6 +99,8 @@ class ClosedEpisode:
     had_fail_retry_pass: bool
     escalated: bool
     files: tuple[str, ...]
+    agent: str | None = None
+    intent: str | None = None
 
 
 @dataclass(frozen=True)
@@ -101,6 +108,7 @@ class PriorEpisode:
     episode_id: str
     timestamp_start: datetime
     files: tuple[str, ...]
+    intent: str | None
     summary: str | None
     assumptions: tuple[tuple[str, Validity], ...]
 
@@ -114,6 +122,8 @@ class EpisodeRow:
     escalated: bool
     summary: str | None
     files: tuple[str, ...]
+    agent: str | None
+    intent: str | None
 
 
 class Store:
@@ -123,9 +133,18 @@ class Store:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.executescript(_SCHEMA)
+        self._migrate()
 
     def close(self) -> None:
         self._conn.close()
+
+    def _migrate(self) -> None:
+        with self._tx() as conn:
+            for table, columns in _ADDED_COLUMNS.items():
+                existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+                for column in columns:
+                    if column not in existing:
+                        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
 
     def __enter__(self) -> Store:
         return self
@@ -243,12 +262,15 @@ class Store:
         with self._tx() as conn:
             conn.execute(
                 "UPDATE episodes SET status = 'closed', summary = ?, had_deletion = ?, "
-                "had_fail_retry_pass = ?, escalated = ? WHERE episode_id = ?",
+                "had_fail_retry_pass = ?, escalated = ?, agent = ?, intent = ? "
+                "WHERE episode_id = ?",
                 (
                     episode.summary,
                     episode.had_deletion,
                     episode.had_fail_retry_pass,
                     episode.escalated,
+                    episode.agent,
+                    episode.intent,
                     episode.episode_id,
                 ),
             )
@@ -283,7 +305,8 @@ class Store:
             return []
         placeholders = ",".join("?" * len(paths))
         rows = self._conn.execute(
-            "SELECT DISTINCT e.episode_id, e.timestamp_start, e.summary FROM episodes e "
+            "SELECT DISTINCT e.episode_id, e.timestamp_start, e.intent, e.summary "
+            "FROM episodes e "
             "JOIN episode_files ef ON ef.episode_id = e.episode_id "
             f"WHERE e.escalated = 1 AND e.episode_id != ? AND ef.file_path IN ({placeholders}) "
             "ORDER BY e.timestamp_start",
@@ -294,6 +317,7 @@ class Store:
                 episode_id=row["episode_id"],
                 timestamp_start=datetime.fromisoformat(row["timestamp_start"]),
                 files=self._episode_files(row["episode_id"]),
+                intent=row["intent"],
                 summary=row["summary"],
                 assumptions=self._assumptions(row["episode_id"]),
             )
@@ -313,6 +337,8 @@ class Store:
                 escalated=bool(row["escalated"]),
                 summary=row["summary"],
                 files=self._episode_files(row["episode_id"]),
+                agent=row["agent"],
+                intent=row["intent"],
             )
             for row in rows
         ]

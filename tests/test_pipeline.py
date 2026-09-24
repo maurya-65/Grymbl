@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Sequence
 from datetime import datetime
 
 from grymbl.config import Settings
+from grymbl.events import EventKind
 from grymbl.pipeline import Pipeline
 from grymbl.reasoning import EpisodeAnalysis, EpisodeEvidence
 from grymbl.store import Snapshot, Store
-from tests.helpers import at, change, ran_tests
+from tests.helpers import agent_event, at, change, ran_tests
 
 
 class FakeAnalyst:
@@ -98,3 +100,38 @@ def test_escalation_without_analyst_is_still_recorded(store: Store, settings: Se
     [episode] = store.recent_episodes(5)
     assert episode.escalated
     assert episode.summary is None
+
+
+def test_agent_episode_records_intent_and_agent(store: Store, settings: Settings) -> None:
+    analyst = FakeAnalyst()
+    pipeline = Pipeline(store, settings, analyst, RecordingSink())
+    store.add_event(agent_event(EventKind.AGENT_PROMPT, 0, prompt="make tokens expire"))
+    store.add_event(change("app/auth.py", 1, added=0, removed=5))
+    store.add_event(agent_event(EventKind.AGENT_TURN_END, 2, narrative="Only touched auth."))
+    pipeline.tick(at(30))
+
+    [episode] = store.recent_episodes(5)
+    assert (episode.agent, episode.intent) == ("claude-code", "make tokens expire")
+    assert episode.escalated  # deleted logic
+    [evidence] = analyst.seen
+    assert evidence.events[0].kind is EventKind.AGENT_PROMPT
+
+
+def test_store_migrates_databases_created_before_v1_1(settings: Settings) -> None:
+    settings.db_path.unlink(missing_ok=True)
+    legacy = sqlite3.connect(settings.db_path)
+    legacy.execute(
+        "CREATE TABLE episodes (episode_id TEXT PRIMARY KEY, timestamp_start TEXT NOT NULL, "
+        "timestamp_end TEXT NOT NULL, developer TEXT NOT NULL, summary TEXT, "
+        "had_deletion INTEGER NOT NULL DEFAULT 0, had_fail_retry_pass INTEGER NOT NULL DEFAULT 0, "
+        "escalated INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'open')"
+    )
+    legacy.execute(
+        "INSERT INTO episodes (episode_id, timestamp_start, timestamp_end, developer) "
+        "VALUES ('old', '2026-09-01T00:00:00+00:00', '2026-09-01T00:00:00+00:00', 'dev')"
+    )
+    legacy.commit()
+    legacy.close()
+    with Store(settings.db_path) as store:
+        [episode] = store.recent_episodes(1)
+    assert (episode.episode_id, episode.agent, episode.intent) == ("old", None, None)
