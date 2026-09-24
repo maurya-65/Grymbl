@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path, PurePosixPath
+from typing import Literal
 
 DATA_DIR_NAME = ".grymbl"
 SONNET_MODEL = "claude-sonnet-5"
@@ -50,6 +51,9 @@ class Settings:
     deletion_threshold: int = 3
     max_file_bytes: int = 512_000
     model: str = SONNET_MODEL
+    # Cost controls: thinking depth per call, and a hard ceiling on calls per UTC day.
+    effort: Literal["low", "medium", "high"] = "medium"
+    daily_call_cap: int = 25
 
     @property
     def data_dir(self) -> Path:

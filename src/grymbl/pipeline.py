@@ -48,7 +48,7 @@ class Pipeline:
             self._store.escalated_files(excluding_episode=episode.episode_id),
             self._settings.deletion_threshold,
         )
-        analysis = self._analyze(episode, decision, files) if decision.escalate else None
+        analysis = self._analyze(episode, decision, files, now) if decision.escalate else None
         if analysis is not None and analysis.intervention:
             self._sink.deliver(
                 episode.episode_id, now, files, decision.reasons, analysis.intervention
@@ -70,11 +70,20 @@ class Pipeline:
             self._store.add_assumptions(episode.episode_id, analysis.assumptions)
 
     def _analyze(
-        self, episode: OpenEpisode, decision: Triage, files: tuple[str, ...]
+        self, episode: OpenEpisode, decision: Triage, files: tuple[str, ...], now: datetime
     ) -> EpisodeAnalysis | None:
         log.info("Escalating episode %s: %s", episode.episode_id, "; ".join(decision.reasons))
         if self._analyst is None:
             return None
+        day = f"{now:%Y-%m-%d}"
+        if self._store.calls_on(day) >= self._settings.daily_call_cap:
+            log.warning(
+                "Daily cap of %d Sonnet calls reached; recording episode %s without analysis",
+                self._settings.daily_call_cap,
+                episode.episode_id,
+            )
+            return None
+        self._store.count_call(day)
         return self._analyst.analyze(
             EpisodeEvidence(
                 episode_id=episode.episode_id,

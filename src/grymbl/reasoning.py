@@ -16,6 +16,14 @@ from grymbl.store import PriorEpisode
 
 log = logging.getLogger(__name__)
 
+Effort = Literal["low", "medium", "high"]
+
+# Cost ceiling per call: ~25k input tokens at ~4 characters per token.
+MAX_EVIDENCE_CHARS = 100_000
+# Most recent prior episodes sent as history; older ones add cost, rarely judgment.
+MAX_HISTORY = 10
+TRIM_MARKER = "\n[... {n} characters trimmed by grymbl to cap cost ...]"
+
 EVIDENCE_RULE = (
     "Only state a decision, assumption, or risk if the episode's diff, commit messages, and "
     "file history directly support it. If the evidence is thin - a change with no clear "
@@ -70,8 +78,9 @@ class Analyst(Protocol):
 
 
 class SonnetAnalyst:
-    def __init__(self, model: str) -> None:
+    def __init__(self, model: str, effort: Effort) -> None:
         self._model = model
+        self._effort: Effort = effort
         self._client = anthropic.Anthropic()
         self._has_credentials = True
 
@@ -85,6 +94,7 @@ class SonnetAnalyst:
                 max_tokens=16000,
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": render_evidence(evidence)}],
+                output_config={"effort": self._effort},
                 output_format=EpisodeAnalysis,
             )
         except (anthropic.CredentialsError, TypeError) as error:
@@ -119,31 +129,60 @@ class SonnetAnalyst:
         return response.parsed_output
 
 
-def render_evidence(evidence: EpisodeEvidence) -> str:
-    """Plain-text evidence for the model. Everything passes through redaction again."""
-    lines = [
+def render_evidence(evidence: EpisodeEvidence, max_chars: int = MAX_EVIDENCE_CHARS) -> str:
+    """Plain-text evidence for the model, capped at `max_chars` and redacted again.
+
+    When over budget, the longest events (usually big diffs) are trimmed first, each with
+    an explicit marker so the model knows the evidence is partial.
+    """
+    header = [
         f"<episode id={evidence.episode_id} developer={evidence.developer}>",
         f"Flagged because: {'; '.join(evidence.reasons)}",
         "",
         "<events>",
     ]
-    for event in evidence.events:
-        lines.append(_render_event(event))
-    lines += ["</events>", "</episode>", "", "<history>"]
-    if not evidence.history:
-        lines.append("No earlier flagged episodes touched these files.")
-    for prior in evidence.history:
-        lines.append(
+    footer = ["</events>", "</episode>", "", "<history>"]
+    history = evidence.history[-MAX_HISTORY:]
+    if not history:
+        footer.append("No earlier flagged episodes touched these files.")
+    for prior in history:
+        footer.append(
             f"- episode {prior.episode_id} at {prior.timestamp_start:%Y-%m-%d %H:%M} "
             f"on {', '.join(prior.files)}"
         )
         if prior.intent:
-            lines.append(f"  intent: {prior.intent}")
-        lines.append(f"  summary: {prior.summary or '(no analysis recorded)'}")
+            footer.append(f"  intent: {prior.intent}")
+        footer.append(f"  summary: {prior.summary or '(no analysis recorded)'}")
         for statement, validity in prior.assumptions:
-            lines.append(f"  assumption [{validity}]: {statement}")
-    lines.append("</history>")
-    return redact("\n".join(lines))
+            footer.append(f"  assumption [{validity}]: {statement}")
+    footer.append("</history>")
+
+    fixed = len("\n".join(header + footer)) + len(evidence.events)
+    # Redact before trimming: a cut can shorten a secret below what the patterns recognise.
+    rendered = [redact(_render_event(event)) for event in evidence.events]
+    events = _fit(rendered, max_chars - fixed)
+    return redact("\n".join(header + events + footer))
+
+
+def _fit(texts: list[str], budget: int) -> list[str]:
+    """Trim the longest texts to one shared length so the total fits `budget`."""
+    if sum(len(t) for t in texts) <= budget:
+        return texts
+    # Largest per-text cap that fits: shorter texts keep everything, longer ones share the rest.
+    remaining, cap = max(budget, 0), 0
+    lengths = sorted(len(t) for t in texts)
+    for index, length in enumerate(lengths):
+        share = remaining // (len(lengths) - index)
+        if length > share:
+            cap = share
+            break
+        remaining -= length
+    return [t if len(t) <= cap else _trim(t, cap) for t in texts]
+
+
+def _trim(text: str, cap: int) -> str:
+    marker = TRIM_MARKER.format(n=len(text) - cap)
+    return text[: max(cap - len(marker), 0)] + marker
 
 
 def _render_event(event: Event) -> str:

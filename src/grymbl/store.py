@@ -171,6 +171,20 @@ class Store:
                 (key, value),
             )
 
+    def count_call(self, day: str) -> int:
+        """Increment and return the number of model calls made on `day` (YYYY-MM-DD, UTC)."""
+        key = f"model_calls/{day}"
+        with self._tx() as conn:
+            conn.execute(
+                "INSERT INTO meta (key, value) VALUES (?, '1') "
+                "ON CONFLICT (key) DO UPDATE SET value = CAST(value AS INTEGER) + 1",
+                (key,),
+            )
+        return int(self.get_meta(key) or 0)
+
+    def calls_on(self, day: str) -> int:
+        return int(self.get_meta(f"model_calls/{day}") or 0)
+
     # --- events -----------------------------------------------------------
 
     def add_event(self, event: Event) -> Event:

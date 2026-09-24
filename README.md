@@ -103,6 +103,21 @@ and test runs show, and a mismatch between the two counts as a finding. Skip thi
 `grymbl init --no-agent-hooks`. See `docs/v1.1_agent_awareness.md` for the roadmap: agents
 recording their own assumptions over MCP, and warnings delivered to the agent itself.
 
+## Cost
+
+Model spend is capped by design:
+
+- **Jev decides first.** Routine work never reaches the model. Only episodes that meet the
+  escalation rules cost anything.
+- **Medium effort** on Sonnet by default (`Settings.effort`).
+- **At most 25 Sonnet calls per day** (`Settings.daily_call_cap`). Beyond that, escalations are
+  still recorded, just without analysis.
+- **Evidence capped at ~25k tokens per call.** The largest diffs are trimmed first, with an
+  explicit marker, and at most the 10 most recent prior episodes are sent as history.
+- The watcher logs the token usage of every call.
+
+Also set a monthly spend limit in the Anthropic Console as a backstop.
+
 ## Privacy
 
 - Commands are captured only inside a repo that has a `.grymbl/` directory.

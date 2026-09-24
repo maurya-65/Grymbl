@@ -166,7 +166,7 @@ def _drain(events: queue.Queue[FileSystemEvent], router: FileEventRouter, until:
 
 def make_analyst(settings: Settings) -> Analyst | None:
     try:
-        return SonnetAnalyst(settings.model)
+        return SonnetAnalyst(settings.model, settings.effort)
     except anthropic.AnthropicError as error:
         log.warning("Sonnet unavailable (%s); escalations will be recorded without analysis", error)
         return None

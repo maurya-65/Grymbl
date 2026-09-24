@@ -72,7 +72,7 @@ def test_missing_credentials_do_not_crash_the_watcher(monkeypatch: pytest.Monkey
     monkeypatch.setenv("USERPROFILE", "/nonexistent-grymbl-test")
     monkeypatch.setenv("XDG_CONFIG_HOME", "/nonexistent-grymbl-test")
     monkeypatch.setenv("APPDATA", "/nonexistent-grymbl-test")
-    analyst = SonnetAnalyst("claude-sonnet-5")
+    analyst = SonnetAnalyst("claude-sonnet-5", "medium")
     evidence = EpisodeEvidence("e1", "dev", ("fail -> retry -> pass",), [command("ls", 0)], [])
     assert analyst.analyze(evidence) is None
     assert analyst.analyze(evidence) is None  # stays quiet after the first failure
