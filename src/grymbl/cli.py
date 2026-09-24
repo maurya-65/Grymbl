@@ -6,11 +6,15 @@ import argparse
 import json
 import logging
 import sys
+import webbrowser
 from collections.abc import Callable, Sequence
+from datetime import timedelta
 from importlib import resources
 from pathlib import Path
 
 from grymbl.config import Settings, find_repo_root
+from grymbl.events import utcnow
+from grymbl.report import build_report, write_report
 from grymbl.sensors import developer_name
 from grymbl.sensors.agent import capture_hook, install_claude_hooks
 from grymbl.sensors.files import FileSensor
@@ -51,6 +55,16 @@ def _parser() -> argparse.ArgumentParser:
     run = commands.add_parser("watch", help="run the watcher (foreground)")
     run.add_argument("path", nargs="?", default=".", type=Path)
     run.set_defaults(handler=_watch)
+
+    report = commands.add_parser("report", help="write an HTML report and open it")
+    span = report.add_mutually_exclusive_group()
+    span.add_argument("--days", type=int, default=30, help="how many days back (default 30)")
+    span.add_argument("--all", action="store_true", help="include all history")
+    report.add_argument(
+        "-o", "--output", type=Path, help="where to write (default .grymbl/report.html)"
+    )
+    report.add_argument("--no-open", action="store_true", help="don't open it in the browser")
+    report.set_defaults(handler=_report)
 
     status = commands.add_parser("status", help="show recent episodes")
     status.add_argument("-n", type=int, default=10, help="number of episodes")
@@ -122,6 +136,24 @@ def _watch(args: argparse.Namespace) -> int:
     except AlreadyWatchingError as error:
         print(f"grymbl: {error}", file=sys.stderr)
         return 1
+    return 0
+
+
+def _report(args: argparse.Namespace) -> int:
+    root = find_repo_root(Path.cwd())
+    if root is None:
+        print("Not a Grymbl-watched repository. Run `grymbl init` first.", file=sys.stderr)
+        return 1
+    settings = Settings(root)
+    now = utcnow()
+    days = None if args.all else args.days
+    since = None if days is None else now - timedelta(days=days)
+    with Store(settings.db_path) as store:
+        html = build_report(store, settings, since, now, days)
+    path = write_report(html, args.output or settings.data_dir / "report.html")
+    print(f"Report written to {path}")
+    if not args.no_open:
+        webbrowser.open(path.resolve().as_uri())
     return 0
 
 

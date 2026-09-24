@@ -78,6 +78,7 @@ sensors ──► events (SQLite) ──► episodes ──► Jev triage ──
 | Experience Graph | `store.py` | §7 |
 | Sonnet + evidence rule | `reasoning.py` | §11 |
 | Coding-agent capture (Claude Code) | `sensors/agent.py` | v1.1 |
+| Local HTML report (`grymbl report`) | `report.py`, `templates/report.html` | — |
 
 ## Setup
 
@@ -104,6 +105,7 @@ export ANTHROPIC_API_KEY=...      # only escalated episodes are sent
 grymbl watch                      # leave running in a terminal
 grymbl test -- pytest             # or: grymbl test -- npx jest / grymbl test -- go test ./...
 grymbl status                     # recent episodes
+grymbl report                     # the full picture in your browser (charts, episodes, cost)
 ```
 
 pytest needs `pytest-json-report` installed in the app's environment.

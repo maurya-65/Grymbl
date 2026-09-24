@@ -395,7 +395,7 @@ From plan §9.2. Each layer is picked for its own constraints:
 | Shape | Local program, no servers |
 | Language | Python 3.12+ |
 | Tooling | uv (`uv.lock`), hatchling, `pyproject.toml` |
-| Quality | ruff, mypy (strict), pytest (96 tests) |
+| Quality | ruff, mypy (strict), pytest (100+ tests) |
 | Storage | SQLite (WAL), one file per project |
 | Files | watchdog + SHA-256 + difflib |
 | Terminal | bash / zsh / PowerShell hooks |

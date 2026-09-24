@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+<title>Grymbl Report</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+  --accent: #2a78d6; --deemph: #b9b7ae; --hover: rgba(11,11,11,0.04);
+  --warning: #fab219; --critical: #d03b3b; --good: #0ca30c;
+  --add-bg: rgba(12,163,12,0.12); --del-bg: rgba(208,59,59,0.12); --hunk: #52514e;
+  --chip-bg: rgba(42,120,214,0.10);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --deemph: #5d5c57; --hover: rgba(255,255,255,0.05);
+    --add-bg: rgba(12,163,12,0.20); --del-bg: rgba(208,59,59,0.22); --hunk: #c3c2b7;
+    --chip-bg: rgba(57,135,229,0.18);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --accent: #3987e5; --deemph: #5d5c57; --hover: rgba(255,255,255,0.05);
+  --add-bg: rgba(12,163,12,0.20); --del-bg: rgba(208,59,59,0.22); --hunk: #c3c2b7;
+  --chip-bg: rgba(57,135,229,0.18);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
+header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+h1 { font-size: 22px; margin: 0; font-weight: 600; }
+h2 { font-size: 16px; margin: 32px 0 12px; font-weight: 600; }
+.sub { color: var(--ink-2); margin: 4px 0 0; }
+button, select, input { font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+button { cursor: pointer; }
+button:hover { background: var(--hover); }
+button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 20px 0 8px; }
+.filters .group { display: flex; gap: 4px; }
+.filters input { min-width: 200px; flex: 1 1 200px; max-width: 320px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
+.tile, .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.tile { padding: 14px 16px; }
+.tile .label { color: var(--ink-2); font-size: 13px; }
+.tile .value { font-size: 28px; font-weight: 600; margin-top: 2px; }
+.tile .note { color: var(--muted); font-size: 12px; }
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.charts .wide { grid-column: 1 / -1; }
+@media (max-width: 760px) { .charts { grid-template-columns: 1fr; } }
+.card { padding: 16px; min-width: 0; }
+.card h3 { font-size: 14px; margin: 0; font-weight: 600; }
+.card .desc { color: var(--ink-2); font-size: 13px; margin: 2px 0 8px; }
+.legend { display: flex; gap: 16px; font-size: 12px; color: var(--ink-2); margin-bottom: 4px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+svg { display: block; width: 100%; overflow: visible; }
+svg text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+svg .value-label { fill: var(--ink-2); }
+svg .cap-label { fill: var(--ink-2); }
+.grid-line { stroke: var(--grid); stroke-width: 1; }
+.base-line { stroke: var(--axis); stroke-width: 1; }
+.cap-line { stroke: var(--ink-2); stroke-width: 1; }
+.hit { fill: transparent; cursor: default; }
+.hit:hover, .hit:focus { fill: var(--hover); outline: none; }
+.empty { color: var(--muted); padding: 24px 0; text-align: center; }
+details.table-view { margin-top: 8px; }
+details.table-view summary { color: var(--ink-2); font-size: 12px; cursor: pointer; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--ink-2); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+#tooltip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12); display: none; min-width: 140px; }
+#tooltip .t-title { color: var(--ink-2); margin-bottom: 4px; }
+#tooltip .t-row { display: flex; align-items: center; gap: 8px; }
+#tooltip .t-key { width: 12px; height: 2px; border-radius: 1px; }
+#tooltip .t-val { font-weight: 600; min-width: 28px; }
+.warning { border-left: 3px solid var(--warning); padding: 12px 16px; margin-bottom: 8px; }
+.warning .w-head { color: var(--ink-2); font-size: 12px; }
+.warning .w-msg { margin: 4px 0; }
+.chip { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--chip-bg); color: var(--ink); margin: 0 4px 2px 0; }
+.badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 6px; border: 1px solid var(--border); color: var(--ink-2); white-space: nowrap; }
+.badge.escalated { border-color: var(--accent); color: var(--ink); }
+.badge.warned::before { content: "\26A0\FE0E  "; }
+.episode { margin-bottom: 6px; padding: 0; }
+.episode > summary { list-style: none; cursor: pointer; padding: 10px 14px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.episode > summary::-webkit-details-marker { display: none; }
+.episode > summary:hover { background: var(--hover); border-radius: 12px; }
+.episode .when { color: var(--ink-2); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 110px; }
+.episode .what { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
+.episode .body { padding: 0 14px 14px; border-top: 1px solid var(--border); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 12px 0; font-size: 13px; }
+.kv dt { color: var(--ink-2); }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.timeline { list-style: none; margin: 8px 0 0; padding: 0; }
+.timeline li { padding: 8px 0; border-top: 1px solid var(--border); }
+.timeline .ev-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.timeline .ev-time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.timeline .ev-title { overflow-wrap: anywhere; }
+.timeline .ev-title.failed::after { content: "  failed"; color: var(--critical); font-size: 12px; font-weight: 600; }
+pre { background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin: 6px 0 0;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-x: auto; white-space: pre; max-height: 420px; }
+pre .add { background: var(--add-bg); display: block; }
+pre .del { background: var(--del-bg); display: block; }
+pre .hunk { color: var(--hunk); display: block; }
+pre.prose { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: 13px; }
+.muted { color: var(--muted); }
+footer { color: var(--muted); font-size: 12px; margin-top: 40px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1 id="title">Grymbl report</h1>
+      <p class="sub" id="subtitle"></p>
+    </div>
+    <button id="theme" type="button" title="Switch theme">Theme: system</button>
+  </header>
+
+  <div class="filters" role="group" aria-label="Filters">
+    <div class="group" id="range" role="group" aria-label="Date range"></div>
+    <select id="show" aria-label="Which episodes">
+      <option value="all">All episodes</option>
+      <option value="escalated">Escalated only</option>
+      <option value="warned">With warnings</option>
+      <option value="agent">AI agent work</option>
+      <option value="human">Human work</option>
+    </select>
+    <input id="search" type="search" placeholder="Filter by file, intent, or summary" aria-label="Search">
+  </div>
+
+  <section class="kpis" id="kpis" aria-label="Summary"></section>
+
+  <section class="charts">
+    <div class="card wide" id="chart-episodes"></div>
+    <div class="card" id="chart-rules"></div>
+    <div class="card" id="chart-calls"></div>
+  </section>
+
+  <h2>Warnings</h2>
+  <section id="warnings"></section>
+
+  <h2>Episodes</h2>
+  <section id="episodes"></section>
+
+  <h2>Hotspots</h2>
+  <div class="card scroll" id="hotspots"></div>
+
+  <h2>Assumptions</h2>
+  <div class="card scroll" id="assumptions"></div>
+
+  <footer id="footer"></footer>
+</main>
+<div id="tooltip" role="status" aria-live="polite"></div>
+
+<script type="application/json" id="grymbl-data">__GRYMBL_DATA__</script>
+<script>
+(() => {
+  "use strict";
+  const DATA = JSON.parse(document.getElementById("grymbl-data").textContent);
+  const RULES = [
+    ["prior_history", "Prior history"],
+    ["fail_retry_pass", "Fail → retry → pass"],
+    ["multiple_modules", "Multiple modules"],
+    ["deleted_logic", "Deleted logic"],
+  ];
+  const RULE_LABEL = Object.fromEntries(RULES);
+  const DAY_MS = 86400000;
+  const generated = new Date(DATA.meta.generated);
+  const state = { range: DATA.meta.days === null ? "all" : String(DATA.meta.days), show: "all", q: "" };
+
+  // ---- small DOM helpers: text only ever goes in through textContent / append(string) ----
+  function el(tag, attrs, ...children) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs || {})) {
+      if (value === null || value === undefined || value === false) continue;
+      if (key === "class") node.className = value;
+      else if (key === "text") node.textContent = value;
+      else node.setAttribute(key, value);
+    }
+    for (const child of children) if (child !== null && child !== undefined) node.append(child);
+    return node;
+  }
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs) {
+    const node = document.createElementNS(SVG_NS, tag);
+    for (const [key, value] of Object.entries(attrs || {})) {
+      if (key === "text") node.textContent = value; else node.setAttribute(key, value);
+    }
+    return node;
+  }
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function dayKey(date) { return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`; }
+  function dayLabel(key) {
+    const [y, m, d] = key.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+  function when(iso) {
+    return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+  function compact(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+    if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
+    return String(n);
+  }
+  function money(usd) {
+    if (usd === 0) return "US$0";
+    if (usd < 0.01) return "US$" + usd.toFixed(4);
+    return "US$" + usd.toFixed(2);
+  }
+
+  // ---- filtering: one slice feeds every section ----
+  function rangeStart() {
+    if (state.range === "all") return null;
+    const start = new Date(generated.getTime() - Number(state.range) * DAY_MS);
+    return start;
+  }
+  function filteredEpisodes() {
+    const start = rangeStart();
+    const q = state.q.trim().toLowerCase();
+    return DATA.episodes.filter((ep) => {
+      if (start && new Date(ep.start) < start) return false;
+      if (state.show === "escalated" && !ep.escalated) return false;
+      if (state.show === "warned" && !ep.intervention) return false;
+      if (state.show === "agent" && !ep.agent) return false;
+      if (state.show === "human" && ep.agent) return false;
+      if (q) {
+        const hay = [ep.intent || "", ep.summary || "", ...ep.files].join("\n").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+  function daysInRange(episodes) {
+    const start = rangeStart();
+    let first = start;
+    if (!first) {
+      const times = episodes.map((ep) => new Date(ep.start).getTime());
+      first = times.length ? new Date(Math.min(...times)) : new Date(generated.getTime() - 6 * DAY_MS);
+    }
+    const keys = [];
+    const cursor = new Date(first.getFullYear(), first.getMonth(), first.getDate());
+    const last = new Date(generated.getFullYear(), generated.getMonth(), generated.getDate());
+    while (cursor <= last && keys.length < 400) { keys.push(dayKey(cursor)); cursor.setDate(cursor.getDate() + 1); }
+    return keys;
+  }
+
+  // ---- tooltip ----
+  const tooltip = document.getElementById("tooltip");
+  function showTooltip(anchor, title, rows, event) {
+    tooltip.replaceChildren(el("div", { class: "t-title", text: title }));
+    for (const [color, value, label] of rows) {
+      tooltip.append(el("div", { class: "t-row" },
+        color ? el("span", { class: "t-key", style: `background:${color}` }) : null,
+        el("span", { class: "t-val", text: value }),
+        el("span", { class: "muted", text: label })));
+    }
+    tooltip.style.display = "block";
+    const box = anchor.getBoundingClientRect();
+    const x = event && event.clientX !== undefined ? event.clientX : box.left + box.width / 2;
+    const y = event && event.clientY !== undefined ? event.clientY : box.top;
+    const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+    tooltip.style.left = Math.max(8, Math.min(window.innerWidth - tw - 8, x + 12)) + "px";
+    tooltip.style.top = Math.max(8, Math.min(window.innerHeight - th - 8, y - th - 12)) + "px";
+  }
+  function hideTooltip() { tooltip.style.display = "none"; }
+  function bindHover(node, title, rows) {
+    node.setAttribute("tabindex", "0");
+    node.setAttribute("aria-label", `${title}: ${rows.map((r) => `${r[2]} ${r[1]}`).join(", ")}`);
+    node.addEventListener("pointermove", (e) => showTooltip(node, title, rows, e));
+    node.addEventListener("pointerleave", hideTooltip);
+    node.addEventListener("focus", () => showTooltip(node, title, rows, null));
+    node.addEventListener("blur", hideTooltip);
+  }
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  // ---- axis helpers ----
+  function niceScale(maxValue) {
+    const steps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000];
+    const max = Math.max(1, maxValue);
+    const step = steps.find((s) => max / s <= 5) || Math.ceil(max / 5);
+    return { step, top: Math.ceil(max / step) * step };
+  }
+  function roundedTopRect(x, y, w, h, r) {
+    if (h <= 0) return "";
+    const rr = Math.min(r, h, w / 2);
+    return `M${x},${y + h}V${y + rr}Q${x},${y} ${x + rr},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h}Z`;
+  }
+  function roundedRightRect(x, y, w, h, r) {
+    if (w <= 0) return "";
+    const rr = Math.min(r, w, h / 2);
+    return `M${x},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h - rr}Q${x + w},${y + h} ${x + w - rr},${y + h}H${x}Z`;
+  }
+  function tableView(headers, rows, numeric) {
+    const table = el("table", {},
+      el("thead", {}, el("tr", {}, ...headers.map((h, i) => el("th", { class: numeric[i] ? "num" : null, text: h })))),
+      el("tbody", {}, ...rows.map((row) => el("tr", {}, ...row.map((cell, i) => el("td", { class: numeric[i] ? "num" : null, text: String(cell) }))))));
+    return el("details", { class: "table-view" }, el("summary", { text: "Show as table" }), el("div", { class: "scroll" }, table));
+  }
+  function cardHead(container, title, desc) {
+    container.replaceChildren(el("h3", { text: title }), el("p", { class: "desc", text: desc }));
+  }
+
+  // ---- column chart (stacked, 1 or 2 series) ----
+  function columnChart(container, keys, series, opts) {
+    const width = Math.max(280, container.clientWidth - 32);
+    const plotH = 180, axisH = 26, left = 34, right = 8, top = 10;
+    const totals = keys.map((_, i) => series.reduce((sum, s) => sum + s.values[i], 0));
+    const maxTotal = Math.max(0, ...totals, opts.reference && opts.referenceInScale ? opts.reference : 0);
+    const { step, top: yTop } = niceScale(maxTotal);
+    const svg = svgEl("svg", { viewBox: `0 0 ${width} ${top + plotH + axisH}`, role: "img", "aria-label": opts.label });
+    const y = (v) => top + plotH - (v / yTop) * plotH;
+    for (let v = 0; v <= yTop; v += step) {
+      svg.append(svgEl("line", { class: v === 0 ? "base-line" : "grid-line", x1: left, x2: width - right, y1: y(v), y2: y(v) }));
+      svg.append(svgEl("text", { x: left - 6, y: y(v) + 4, "text-anchor": "end", text: compact(v) }));
+    }
+    const band = (width - left - right) / keys.length;
+    const barW = Math.max(2, Math.min(24, band * 0.62));
+    const labelEvery = Math.max(1, Math.ceil(keys.length / 8));
+    keys.forEach((key, i) => {
+      const cx = left + band * i + band / 2;
+      let base = 0;
+      const drawn = series.filter((s) => s.values[i] > 0);
+      drawn.forEach((s, j) => {
+        const v = s.values[i];
+        const y0 = y(base), y1 = y(base + v);
+        const gap = j > 0 ? 2 : 0;  // surface gap between stacked segments
+        const h = Math.max(0, y0 - y1 - gap);
+        const isTop = j === drawn.length - 1;
+        const path = isTop ? roundedTopRect(cx - barW / 2, y1, barW, h, 4) : `M${cx - barW / 2},${y1}h${barW}v${h}h${-barW}Z`;
+        svg.append(svgEl("path", { d: path, fill: s.color }));
+        base += v;
+      });
+      if ((keys.length - 1 - i) % labelEvery === 0) {
+        svg.append(svgEl("text", { x: cx, y: top + plotH + 17, "text-anchor": "middle", text: dayLabel(key) }));
+      }
+      const hit = svgEl("rect", { class: "hit", x: left + band * i, y: top, width: band, height: plotH });
+      bindHover(hit, dayLabel(key), opts.rows(i));
+      svg.append(hit);
+    });
+    if (opts.reference && opts.referenceInScale) {
+      svg.append(svgEl("line", { class: "cap-line", x1: left, x2: width - right, y1: y(opts.reference), y2: y(opts.reference) }));
+      svg.append(svgEl("text", { class: "cap-label", x: width - right, y: y(opts.reference) - 5, "text-anchor": "end", text: opts.referenceLabel }));
+    }
+    return svg;
+  }
+
+  // ---- sections ----
+  function renderKpis(episodes, calls) {
+    const escalated = episodes.filter((e) => e.escalated).length;
+    const warned = episodes.filter((e) => e.intervention).length;
+    const cost = calls.reduce((sum, c) => sum + (c.costUsd || 0), 0);
+    const tokensIn = calls.reduce((sum, c) => sum + c.inputTokens, 0);
+    const tokensOut = calls.reduce((sum, c) => sum + c.outputTokens, 0);
+    const pct = episodes.length ? Math.round((escalated / episodes.length) * 100) : 0;
+    const tiles = [
+      ["Episodes", String(episodes.length), `${episodes.filter((e) => e.status === "open").length} still open`],
+      ["Escalated by Jev", String(escalated), `${pct}% of episodes`],
+      ["Warnings", String(warned), warned ? "see below" : "silence is the default"],
+      ["AI calls", String(calls.length), `cap ${DATA.meta.dailyCap} per day`],
+      ["AI cost", money(cost), `${compact(tokensIn)} in · ${compact(tokensOut)} out tokens`],
+    ];
+    document.getElementById("kpis").replaceChildren(...tiles.map(([label, value, note]) =>
+      el("div", { class: "tile" }, el("div", { class: "label", text: label }), el("div", { class: "value", text: value }), el("div", { class: "note", text: note }))));
+  }
+
+  function renderEpisodeChart(episodes, keys) {
+    const box = document.getElementById("chart-episodes");
+    cardHead(box, "Episodes per day", "Every story of work Grymbl recorded. Escalated ones went to Sonnet.");
+    if (!episodes.length) { box.append(el("p", { class: "empty", text: "No episodes in this range." })); return; }
+    const index = Object.fromEntries(keys.map((k, i) => [k, i]));
+    const esc = keys.map(() => 0), routine = keys.map(() => 0);
+    for (const ep of episodes) {
+      const i = index[dayKey(new Date(ep.start))];
+      if (i === undefined) continue;
+      if (ep.escalated) esc[i] += 1; else routine[i] += 1;
+    }
+    const accent = cssVar("--accent"), deemph = cssVar("--deemph");
+    box.append(el("div", { class: "legend" },
+      el("span", {}, el("i", { class: "swatch", style: `background:${accent}` }), "Escalated"),
+      el("span", {}, el("i", { class: "swatch", style: `background:${deemph}` }), "Routine")));
+    box.append(columnChart(box, keys, [{ values: esc, color: accent }, { values: routine, color: deemph }], {
+      label: "Episodes per day, escalated and routine",
+      rows: (i) => [[accent, String(esc[i]), "escalated"], [deemph, String(routine[i]), "routine"], [null, String(esc[i] + routine[i]), "total"]],
+    }));
+    box.append(tableView(["Day", "Escalated", "Routine", "Total"],
+      keys.map((k, i) => [dayLabel(k), esc[i], routine[i], esc[i] + routine[i]]).filter((r) => r[3] > 0), [false, true, true, true]));
+  }
+
+  function renderRulesChart(episodes) {
+    const box = document.getElementById("chart-rules");
+    cardHead(box, "Why episodes escalated", "Which of Jev's four rules fired. One episode can trip several.");
+    const counts = RULES.map(([id]) => episodes.filter((e) => e.rules.includes(id)).length);
+    if (!counts.some((c) => c > 0)) { box.append(el("p", { class: "empty", text: "Nothing escalated in this range." })); return; }
+    const width = Math.max(280, box.clientWidth - 32);
+    const labelW = 132, right = 36, rowH = 34, barH = 16;
+    const max = Math.max(...counts);
+    const svg = svgEl("svg", { viewBox: `0 0 ${width} ${RULES.length * rowH}`, role: "img", "aria-label": "Escalations per Jev rule" });
+    const accent = cssVar("--accent");
+    RULES.forEach(([, label], i) => {
+      const yMid = i * rowH + rowH / 2;
+      const w = max ? ((width - labelW - right) * counts[i]) / max : 0;
+      svg.append(svgEl("text", { x: 0, y: yMid + 4, text: label }));
+      svg.append(svgEl("line", { class: "base-line", x1: labelW, x2: labelW, y1: i * rowH + 4, y2: (i + 1) * rowH - 4 }));
+      if (counts[i] > 0) svg.append(svgEl("path", { d: roundedRightRect(labelW, yMid - barH / 2, w, barH, 4), fill: accent }));
+      svg.append(svgEl("text", { class: "value-label", x: labelW + w + 6, y: yMid + 4, text: String(counts[i]) }));
+      const hit = svgEl("rect", { class: "hit", x: 0, y: i * rowH, width, height: rowH });
+      bindHover(hit, label, [[accent, String(counts[i]), counts[i] === 1 ? "episode" : "episodes"]]);
+      svg.append(hit);
+    });
+    box.append(svg);
+    box.append(tableView(["Rule", "Episodes"], RULES.map(([, label], i) => [label, counts[i]]), [false, true]));
+  }
+
+  function renderCallsChart(calls, keys) {
+    const box = document.getElementById("chart-calls");
+    cardHead(box, "AI calls per day", `Sonnet analyses (${DATA.meta.model}, ${DATA.meta.effort} effort) and their cost.`);
+    if (!calls.length) { box.append(el("p", { class: "empty", text: "No AI calls in this range. Jev kept everything routine." })); return; }
+    const index = Object.fromEntries(keys.map((k, i) => [k, i]));
+    const count = keys.map(() => 0), cost = keys.map(() => 0), tokens = keys.map(() => 0);
+    for (const c of calls) {
+      const i = index[dayKey(new Date(c.ts))];
+      if (i === undefined) continue;
+      count[i] += 1; cost[i] += c.costUsd || 0; tokens[i] += c.inputTokens + c.outputTokens;
+    }
+    const accent = cssVar("--accent");
+    const cap = DATA.meta.dailyCap;
+    const capInScale = Math.max(...count) >= cap / 2;
+    box.append(columnChart(box, keys, [{ values: count, color: accent }], {
+      label: "AI calls per day",
+      reference: cap, referenceInScale: capInScale, referenceLabel: `daily cap (${cap})`,
+      rows: (i) => [[accent, String(count[i]), count[i] === 1 ? "call" : "calls"], [null, money(cost[i]), "cost"], [null, compact(tokens[i]), "tokens"]],
+    }));
+    if (!capInScale) box.append(el("p", { class: "desc", text: `Daily cap: ${cap} calls. Not approached in this range.` }));
+    box.append(tableView(["Day", "Calls", "Tokens", "Cost"],
+      keys.map((k, i) => [dayLabel(k), count[i], compact(tokens[i]), money(cost[i])]).filter((r) => r[1] > 0), [false, true, true, true]));
+  }
+
+  function renderWarnings(episodes) {
+    const box = document.getElementById("warnings");
+    const warned = episodes.filter((e) => e.intervention).reverse();
+    if (!warned.length) { box.replaceChildren(el("p", { class: "empty card", text: "No warnings in this range. Silence is the default." })); return; }
+    box.replaceChildren(...warned.map((ep) => el("div", { class: "card warning" },
+      el("div", { class: "w-head", text: `⚠︎ ${when(ep.end)} · episode ${ep.id} · ${ep.files.join(", ") || "no files"}` }),
+      el("div", { class: "w-msg", text: ep.intervention }),
+      el("div", {}, ...ep.rules.map((r) => el("span", { class: "chip", text: RULE_LABEL[r] || r }))))));
+  }
+
+  function diffPre(text) {
+    const pre = el("pre");
+    for (const line of text.replace(/\n+$/, "").split("\n")) {
+      const cls = line.startsWith("+") && !line.startsWith("+++") ? "add"
+        : line.startsWith("-") && !line.startsWith("---") ? "del"
+        : line.startsWith("@@") ? "hunk" : null;
+      pre.append(cls ? el("span", { class: cls, text: line }) : line + "\n");
+    }
+    return pre;
+  }
+  function episodeBody(ep) {
+    const body = el("div", { class: "body" });
+    const facts = [
+      ["Episode", ep.id],
+      ["When", `${when(ep.start)} → ${when(ep.end)}`],
+      ["Status", ep.status === "open" ? "open (still gathering)" : ep.escalated ? "escalated" : "routine"],
+      ["Work by", ep.agent ? `${ep.agent} (AI agent)` : "human"],
+      ["Files", ep.files.join(", ") || "none"],
+    ];
+    if (ep.reasons.length) facts.push(["Jev", ep.reasons.join("; ")]);
+    if (ep.summary) facts.push(["Sonnet", ep.summary]);
+    if (ep.intervention) facts.push(["Warning", ep.intervention]);
+    body.append(el("dl", { class: "kv" }, ...facts.flatMap(([k, v]) => [el("dt", { text: k }), el("dd", { text: v })])));
+    if (ep.intent) body.append(el("div", { class: "muted", text: "Intent (the prompt that started this work)" }), el("pre", { class: "prose", text: ep.intent }));
+    if (ep.assumptions.length) {
+      body.append(el("div", { class: "muted", text: "Assumptions recorded" }));
+      body.append(el("ul", {}, ...ep.assumptions.map((a) => el("li", { text: `[${a.validity}] ${a.statement}` }))));
+    }
+    const list = el("ol", { class: "timeline", "aria-label": "Events" });
+    for (const ev of ep.events) {
+      const item = el("li", {}, el("div", { class: "ev-head" },
+        el("span", { class: "ev-time", text: new Date(ev.ts).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }) }),
+        // Test titles already say "N failed"; only commands need the marker.
+        el("span", { class: ev.failed && ev.kind !== "test_run" ? "ev-title failed" : "ev-title", text: ev.title })));
+      if (ev.body) item.append(ev.kind === "file_changed" ? diffPre(ev.body) : el("pre", { class: ev.kind === "agent_turn_end" || ev.kind === "agent_prompt" ? "prose" : null, text: ev.body }));
+      list.append(item);
+    }
+    body.append(list);
+    return body;
+  }
+  function renderEpisodes(episodes) {
+    const box = document.getElementById("episodes");
+    if (!episodes.length) { box.replaceChildren(el("p", { class: "empty card", text: "No episodes match these filters." })); return; }
+    box.replaceChildren(...[...episodes].reverse().map((ep) => {
+      const badge = ep.status === "open" ? el("span", { class: "badge", text: "open" })
+        : ep.escalated ? el("span", { class: ep.intervention ? "badge escalated warned" : "badge escalated", text: ep.intervention ? "warned" : "escalated" })
+        : el("span", { class: "badge", text: "routine" });
+      const headline = ep.intent ? ep.intent.split("\n")[0] : ep.files.join(", ") || "(commands only)";
+      const details = el("details", { class: "card episode" },
+        el("summary", {}, el("span", { class: "when", text: when(ep.start) }), badge,
+          el("span", { class: "what", text: headline }),
+          ...ep.rules.map((r) => el("span", { class: "chip", text: RULE_LABEL[r] || r }))));
+      details.addEventListener("toggle", () => {
+        if (details.open && !details.dataset.rendered) { details.append(episodeBody(ep)); details.dataset.rendered = "1"; }
+      });
+      return details;
+    }));
+  }
+
+  function renderHotspots(episodes) {
+    const box = document.getElementById("hotspots");
+    const byFile = new Map();
+    for (const ep of episodes) for (const f of ep.files) {
+      const row = byFile.get(f) || { file: f, episodes: 0, escalated: 0, warned: 0, last: ep.end };
+      row.episodes += 1; row.escalated += ep.escalated ? 1 : 0; row.warned += ep.intervention ? 1 : 0;
+      if (ep.end > row.last) row.last = ep.end;
+      byFile.set(f, row);
+    }
+    const rows = [...byFile.values()].sort((a, b) => b.escalated - a.escalated || b.episodes - a.episodes).slice(0, 15);
+    if (!rows.length) { box.replaceChildren(el("p", { class: "empty", text: "No files touched in this range." })); return; }
+    box.replaceChildren(el("p", { class: "desc", text: "Files that appear most in escalated episodes. Where trouble happened once, it tends to recur (Jev rule 1)." }),
+      el("table", {},
+        el("thead", {}, el("tr", {}, el("th", { text: "File" }), el("th", { class: "num", text: "Escalated" }), el("th", { class: "num", text: "Warnings" }), el("th", { class: "num", text: "Episodes" }), el("th", { text: "Last touched" }))),
+        el("tbody", {}, ...rows.map((r) => el("tr", {}, el("td", { text: r.file }), el("td", { class: "num", text: String(r.escalated) }), el("td", { class: "num", text: String(r.warned) }), el("td", { class: "num", text: String(r.episodes) }), el("td", { text: when(r.last) }))))));
+  }
+
+  function renderAssumptions(episodes) {
+    const box = document.getElementById("assumptions");
+    const rows = episodes.flatMap((ep) => ep.assumptions.map((a) => ({ ...a, episode: ep.id, when: ep.end }))).reverse();
+    if (!rows.length) { box.replaceChildren(el("p", { class: "empty", text: "No assumptions recorded in this range." })); return; }
+    box.replaceChildren(el("p", { class: "desc", text: "Beliefs Sonnet found directly supported by evidence. All start unverified." }),
+      el("table", {},
+        el("thead", {}, el("tr", {}, el("th", { text: "Assumption" }), el("th", { text: "Validity" }), el("th", { text: "Episode" }), el("th", { text: "When" }))),
+        el("tbody", {}, ...rows.map((r) => el("tr", {}, el("td", { text: r.statement }), el("td", { text: r.validity }), el("td", { text: r.episode }), el("td", { text: when(r.when) }))))));
+  }
+
+  // ---- controls ----
+  function renderRangeButtons() {
+    const box = document.getElementById("range");
+    const options = [["7", "7 days"], ["14", "14 days"], ["30", "30 days"], ["all", DATA.meta.days === null ? "All" : `All (${DATA.meta.days}d)`]]
+      .filter(([v]) => v === "all" || DATA.meta.days === null || Number(v) < DATA.meta.days);
+    box.replaceChildren(...options.map(([value, label]) => {
+      const b = el("button", { type: "button", "aria-pressed": String(state.range === value || (value === "all" && String(DATA.meta.days) === state.range)), text: label });
+      b.addEventListener("click", () => { state.range = value; render(); });
+      return b;
+    }));
+  }
+  const THEMES = ["system", "light", "dark"];
+  function applyTheme(theme) {
+    if (theme === "system") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", theme);
+    document.getElementById("theme").textContent = `Theme: ${theme}`;
+  }
+  let theme = "system";
+  try { theme = localStorage.getItem("grymbl-report-theme") || "system"; } catch (e) { /* storage unavailable */ }
+  applyTheme(theme);
+  document.getElementById("theme").addEventListener("click", () => {
+    theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+    try { localStorage.setItem("grymbl-report-theme", theme); } catch (e) { /* storage unavailable */ }
+    applyTheme(theme); render();
+  });
+  document.getElementById("show").addEventListener("change", (e) => { state.show = e.target.value; render(); });
+  document.getElementById("search").addEventListener("input", (e) => { state.q = e.target.value; render(); });
+
+  function render() {
+    hideTooltip();
+    const episodes = filteredEpisodes();
+    const ids = new Set(episodes.map((e) => e.id));
+    const calls = DATA.calls.filter((c) => ids.has(c.episode));
+    const keys = daysInRange(episodes);
+    renderRangeButtons();
+    renderKpis(episodes, calls);
+    renderEpisodeChart(episodes, keys);
+    renderRulesChart(episodes);
+    renderCallsChart(calls, keys);
+    renderWarnings(episodes);
+    renderEpisodes(episodes);
+    renderHotspots(episodes);
+    renderAssumptions(episodes);
+  }
+
+  document.getElementById("title").textContent = `Grymbl report: ${DATA.meta.repo}`;
+  document.getElementById("subtitle").textContent =
+    `${DATA.meta.developer || "unknown developer"} · ${DATA.meta.days === null ? "all history" : `last ${DATA.meta.days} days`} · generated ${generated.toLocaleString()}`;
+  document.getElementById("footer").textContent =
+    "Generated locally by grymbl report. This page makes no network requests. Secrets are redacted; long diffs are shortened for display (the database keeps everything).";
+  let resizeTimer = null;
+  window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
+  render();
+})();
+</script>
+</body>
+</html>

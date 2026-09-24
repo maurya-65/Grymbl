@@ -24,7 +24,7 @@ Then:
 gh repo clone maurya-65/Grymbl C:\dev\Grymbl     # (macOS/Linux: any folder)
 cd C:\dev\Grymbl
 python -m uv sync                                 # creates .venv/ and installs exact versions from uv.lock
-python -m uv run pytest -q                        # should print "96 passed"
+python -m uv run pytest -q                        # should end with "N passed", and no failures
 ```
 
 If all tests pass, your setup is correct.
@@ -132,8 +132,7 @@ The standards, with the reasons:
   naming them as parameters:
 
   ```python
-  def test_something(store: Store, settings: Settings) -> None:
-      ...
+  def test_something(store: Store, settings: Settings) -> None: ...
   ```
 
 - Build events with `tests/helpers.py`: `change("app/auth.py", minute=0)`,

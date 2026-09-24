@@ -8,7 +8,7 @@ Last updated: **2026-09-24**.
 
 ## Where things stand
 
-**v1 (the plan) is feature-complete. v1.1 step 1 (AI-agent capture) is built.** Quality: 96
+**v1 (the plan) is feature-complete. v1.1 step 1 (AI-agent capture) is built.** Quality: over 100
 automated tests, lint and strict type checks clean.
 
 ### Proven in real use
@@ -22,6 +22,7 @@ automated tests, lint and strict type checks clean.
 | Git capture (when invoked) | Live commit and push captured by calling the capture commands |
 | **Sonnet analysis under the evidence rule** | One real call: it flagged the agent's unverified claim and correctly stayed silent. ≈ US$0.005 |
 | Missing-key and bad-key handling | Live |
+| `grymbl report` | Rendered and checked in a browser (both themes, tooltips, filters, empty states); generated on the real repo |
 
 ### Built but not yet proven in real use
 
@@ -48,7 +49,8 @@ automated tests, lint and strict type checks clean.
 | **No config file** | Changing a setting means editing code | Read overrides from `.grymbl/config.toml` |
 | **Watcher doesn't auto-start** | Easy to forget to run it | A login task (Windows Task Scheduler / macOS launchd / Linux systemd) |
 | **Only Claude Code** among AI agents | Other agents' work looks human | The MCP layer (below), or per-agent adapters |
-| **Rule 1 may snowball** | Busy files with history escalate more over time, raising cost | Watch the escalation rate in the first weeks; consider limiting rule 1 to recent history |
+| **Rule 1 may snowball** | Busy files with history escalate more over time, raising cost. In a synthetic two-week test on six files, 47 of 51 episodes escalated, 44 of them via rule 1 | Watch "Why episodes escalated" in `grymbl report`; consider limiting rule 1 to recent history, or to files with warnings rather than any escalation |
+| **Watched `.env` files keep secrets in the database** | File snapshots store raw content locally (redaction applies only to what's shown or sent) | Ignore `.env*` files in the watcher, or redact snapshots |
 
 ---
 
@@ -67,6 +69,7 @@ In recommended order. Effort is a rough guide for one developer.
 | 7 | **v1.1 step 3: warnings to the agent itself** before it edits a file with bad history | The best recipient of a warning is the one about to repeat the mistake | Medium |
 | 8 | Assumption validity updates | Lets memory learn from being wrong | Medium |
 | 9 | Config file; watcher auto-start | Everyday comfort | Small each |
+| ✓ | ~~A way to see everything~~ **Done:** `grymbl report`, with token usage saved per call | — | — |
 | 10 | Test on macOS and Linux | Cross-platform promise | Small |
 
 Details for items 6 and 7: [`v1.1_agent_awareness.md`](../v1.1_agent_awareness.md).

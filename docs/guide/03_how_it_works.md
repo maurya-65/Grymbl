@@ -348,6 +348,9 @@ database in WAL mode, with a 10-second wait when the file is momentarily busy. T
 | `summary` | Sonnet's summary, if it was analysed |
 | `agent` | `claude-code` for agent work, empty for human work |
 | `intent` | The prompt that opened it, for agent work |
+| `jev_rules` | Which Jev rules fired, as IDs: `prior_history`, `fail_retry_pass`, `multiple_modules`, `deleted_logic` |
+| `jev_reasons` | The same, as readable sentences ("touches multiple modules: api, app") |
+| `intervention` | The warning delivered for this episode, if any |
 
 **`episode_files`**: which files each episode touched (the **touched** relationship).
 
@@ -359,6 +362,10 @@ relationship), `created_at`, and `current_validity`: one of `unverified` (the st
 
 **`file_snapshots`**: each file's last known `content_hash` and `content`. This is the dedup
 baseline and the "before" side of diffs.
+
+**`model_calls`**: one row per Sonnet call: `episode_id`, `ts`, `model`, `input_tokens`,
+`output_tokens`, and `cost_usd`, priced *when the call was made* so history stays accurate even
+if prices change later.
 
 **`meta`**: small key/value notes: the `developer` name, and a per-day counter
 `model_calls/YYYY-MM-DD` for the cost cap.
@@ -378,8 +385,8 @@ It uses plain tables instead of a graph database because 3 node types and 2 rela
 don't justify one. The move is planned for when richer relationships (contradicts, builds on,
 supersedes) exist. See [Tech Stack](04_tech_stack.md#storage).
 
-**Migrations:** on every start, Grymbl adds any missing columns (such as `agent` and `intent`)
-to older databases, keeping their data.
+**Migrations:** on every start, Grymbl adds any missing columns (such as `agent`, `intent`,
+`jev_rules`) and tables (such as `model_calls`) to older databases, keeping their data.
 
 ---
 
@@ -580,6 +587,9 @@ In v1, each intervention goes to:
    flagged, and the message.
 2. **The watcher's terminal window**, printed as `[grymbl] <message>`.
 
+Each warning is also saved on its episode (`intervention` column), so the
+[report](#the-report) can list them.
+
 The plan deliberately left the channel open ("a UI detail"). The v1.1 roadmap proposes telling
 the *agent itself* before it repeats a mistake ([Roadmap](09_status_and_roadmap.md)).
 
@@ -597,7 +607,7 @@ important first:
 | **Daily cap** | `daily_call_cap = 25` per UTC day | Beyond it, escalations are recorded but not analysed |
 | **Evidence cap** | `MAX_EVIDENCE_CHARS = 100_000` (~25,000 tokens) | If exceeded, the longest events (usually big diffs) are trimmed to a shared length, each with a visible marker `[... N characters trimmed by grymbl to cap cost ...]` |
 | **History cap** | `MAX_HISTORY = 10` | Only the most recent prior episodes are sent |
-| **Usage logging** | every call | `Sonnet analysed episode X: N input, M output tokens` |
+| **Usage tracking** | every call | Logged (`Sonnet analysed episode X: N input, M output tokens`) **and saved** in `model_calls` with its cost, so the [report](#the-report) can chart spending |
 
 **Safety detail:** each event is redacted *before* trimming. Cutting first could slice a
 secret too short for the patterns to recognise. A test sweeps the cut position across a
@@ -605,6 +615,44 @@ secret to prove no fragment survives.
 
 **Measured cost:** about **US$0.005** for a small episode, and under about US$0.09 at the
 evidence cap. See [Operating](07_operating.md#watching-costs).
+
+---
+
+## The report
+
+**Job:** let you *see* everything Grymbl recorded and concluded, systematically, so you can judge
+whether it's working.
+
+`grymbl report` writes **`.grymbl/report.html`** (covering the last 30 days by default; `--days N`
+or `--all` to change) and opens it in your browser.
+
+**What's on the page:**
+
+| Section | Shows | Why |
+|---|---|---|
+| Filter row | Date range (7 / 14 / 30 days / all), which episodes (all, escalated, warned, AI agent, human), a text search | One set of filters scopes *everything* below, so numbers always agree |
+| Summary tiles | Episodes, escalated (and %), warnings, AI calls, AI cost | The five numbers that say whether Grymbl is doing its job |
+| Episodes per day | Stacked columns: escalated (blue) on routine (grey) | The *emphasis* form: escalations are the story, routine work is context |
+| Why episodes escalated | One bar per Jev rule | Spots a rule that fires too often (see [roadmap](09_status_and_roadmap.md#known-gaps)) |
+| AI calls per day | Calls per day, with the daily cap line when it's close | Cost at a glance; hover for tokens and dollars |
+| Warnings | Every intervention with its episode, files, and rules | The things Grymbl actually said |
+| Episodes | Every episode, newest first. Click one for its full timeline: prompt, diffs, commands, test results, the agent's narrative, Jev's reasons, Sonnet's summary, assumptions | The evidence behind every judgment |
+| Hotspots | Files ranked by escalations | Where trouble lives |
+| Assumptions | Every recorded belief and its validity | What the memory believes |
+
+**Built to the dataviz method:** thin columns with 4px rounded ends and a 2px gap between stacked
+segments; hairline grids; a legend whenever there are two series; hover tooltips (value first,
+line keys) with keyboard focus support; a **"Show as table"** view under every chart; light and
+dark themes (follows your system, or cycle with the Theme button); colours validated for
+colour-blind separation.
+
+**Private and safe by construction:**
+- One self-contained file: no external scripts, fonts, or images.
+- A **Content-Security-Policy** header forbids the page from making *any* network request.
+- Everything shown is redacted again, and every piece of text is inserted as plain text
+  (`textContent`), so a diff containing `<script>` is displayed, never run.
+- Very long diffs are shortened *for display* (20,000 characters); the database keeps everything.
+- It lives in `.grymbl/`, which git ignores.
 
 ---
 

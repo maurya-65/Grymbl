@@ -37,7 +37,10 @@ Grymbl/
 │   ├── reasoning.py           ← Sonnet: evidence, prompt, API call
 │   ├── interventions.py       ← writing warnings
 │   ├── pipeline.py            ← one tick: assign → close → judge
-│   └── watch.py               ← the long-running watcher
+│   ├── watch.py               ← the long-running watcher
+│   ├── report.py              ← builds the HTML report's data
+│   └── templates/
+│       └── report.html        ← the report page (HTML, CSS, JavaScript)
 ├── tests/                     ← automated tests (one file per module)
 ├── docs/                      ← plan, addendum, and this guide
 ├── pyproject.toml             ← project definition, dependencies, tool settings
@@ -87,6 +90,7 @@ subcommand to a handler:
 | `_init` | `grymbl init [path] [--no-agent-hooks]` | Setup ([Chapter 3](03_how_it_works.md#setup-with-grymbl-init)) |
 | `_watch` | `grymbl watch [path]` | Starts `watch.watch()`; refuses if another watcher holds the lock |
 | `_status` | `grymbl status [-n N]` | Prints recent episodes from `store.recent_episodes()` |
+| `_report` | `grymbl report [--days N / --all] [-o FILE] [--no-open]` | Builds the HTML report and opens it |
 | `_shell_hook` | `grymbl shell-hook bash\|zsh\|powershell` | Prints the hook script from the `hooks/` folder |
 | `_test` | `grymbl test -- <cmd>` | Calls `sensors.tests.run_and_capture()` |
 | `_capture_command` | *(hidden)* `capture-command --exit-code N` | Called by shell hooks; reads the command from stdin |
@@ -155,10 +159,11 @@ The **`Store`** class wraps one SQLite connection. The schema is `_SCHEMA` at th
 | Notes | `get_meta`, `set_meta`, `count_call`, `calls_on` |
 | Events | `add_event` (returns the event with its ID), `unassigned_events`, `episode_events` |
 | Snapshots and the import graph | `snapshot`, `put_snapshot` (also stores imports), `delete_snapshot`, `known_files`, `import_graph` |
-| Episodes | `attach_event`, `open_episode_ids`, `close_episode`, `recent_episodes` |
+| Episodes | `attach_event`, `open_episode_ids`, `close_episode`, `recent_episodes`, `episodes_since` |
+| Cost | `record_model_call`, `model_calls_since` |
 | Memory for Jev and Sonnet | `escalated_files` (rule 1), `history_for` (Sonnet's history), `add_assumptions` |
 
-Data shapes returned: `Snapshot`, `ClosedEpisode`, `PriorEpisode`, `EpisodeRow`.
+Data shapes returned: `Snapshot`, `ClosedEpisode`, `PriorEpisode`, `EpisodeRow`, `ModelCall`.
 
 ### correlate.py
 
@@ -185,9 +190,21 @@ Data shapes returned: `Snapshot`, `ClosedEpisode`, `PriorEpisode`, `EpisodeRow`.
 - **`EpisodeEvidence`**: what gets sent: episode ID, developer, Jev's reasons, events, history.
 - **`Analyst`**: a *protocol*, the required shape of anything that can analyse an episode.
   Tests supply a fake that matches it.
-- **`SonnetAnalyst.analyze(evidence)`**: the real API call, with all error handling.
+- **`SonnetAnalyst.analyze(evidence)`** → `AnalystResult(analysis, usage)`: the real API call,
+  with all error handling. `usage` (a `Usage`: model, input and output tokens, and `cost_usd` from
+  `PRICES_PER_MTOK`) is returned even when the model refuses, because refusals are billed too.
 - **`render_evidence(evidence)`**: builds the text, redacting each event *then* trimming
   (`_fit`, `_trim`) to the cap.
+
+### report.py and templates/report.html
+
+- **`build_report(store, settings, since, now, days)`**: gathers episodes (with their events,
+  assumptions, Jev rules, and warnings) and model calls, redacts every displayed text, shortens
+  huge diffs (`MAX_DISPLAY_CHARS`), and embeds it all as JSON into the template.
+- **`_embed(data)`**: escapes `<`, `>`, `&` so no content can end the `<script>` block early.
+- **`templates/report.html`**: the page itself. Plain HTML, CSS (light/dark tokens), and vanilla
+  JavaScript that draws the SVG charts, tooltips, tables, and filters. It inserts every string with
+  `textContent`, and its Content-Security-Policy blocks all network access.
 
 ### interventions.py
 
@@ -295,6 +312,7 @@ Each module has a matching test file in `tests/`:
 | `test_pipeline.py` | Whole flows with a real SQLite database and a fake analyst; history; migration of old databases |
 | `test_cost_controls.py` | The evidence cap, never leaking part of a secret, the history cap, the effort setting, the daily cap |
 | `test_capture.py` | Hook entry points end to end; redaction before storage; missing-credential handling |
+| `test_report.py` | Report data completeness, redaction, `</script>` break-out protection, display shortening, date ranges, the command |
 
 **Shared helpers:**
 - `tests/conftest.py` provides **fixtures**, pytest's name for ready-made test ingredients:

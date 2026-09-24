@@ -26,7 +26,8 @@ Everything so far was built on **2026-09-24**, in one working session. Each row 
 | `3e2d104` | Proprietary license |
 | `5718e9e` | First documentation (since replaced by this guide) |
 | `20af405` | API error details logged; **first real Sonnet analysis** recorded |
-| *(this guide)* | The complete handover guide |
+| `1f2056b` | The complete handover guide |
+| *(next)* | `grymbl report` (local HTML view) and saved token usage |
 
 Run `git log` for the full messages, which explain the *why* of each change.
 
@@ -91,6 +92,10 @@ changes behaviour, and each is worth knowing before changing it.
 |---|---|---|---|
 | D29 | Proprietary license, "Copyright 2026 Maurya Oganja, all rights reserved" | Open source | Solo commercial venture |
 | D30 | Private GitHub repo | Public | Proprietary |
+| D31 | A local HTML **report** file, not a dashboard server or hosted page | CLI-only views; a live local server; a Next.js dashboard | Enough to evaluate the prototype; zero infrastructure; nothing leaves the machine. The Next.js dashboard stays at scale (plan §9.2) |
+| D32 | The report blocks all network access (CSP) and inserts text only via `textContent` | Trusting the data | Diffs and prompts are untrusted content |
+| D33 | Token usage and cost saved per call, priced at call time | Only logging it | Cost history needs data; prices can change |
+| D34 | Jev stores rule IDs, not just sentences | Parse the sentences | Charts need stable categories |
 
 ---
 

@@ -117,6 +117,7 @@ quiet except for warnings, AI-call token counts, and problems. Stop it with **Ct
 | `grymbl watch` | Run the watcher (keep it open) |
 | `grymbl status` | Recent episodes: time, ID, open/closed, routine/ESCALATED, files, the agent's intent, the summary |
 | `grymbl status -n 30` | More episodes |
+| `grymbl report` | **The full picture**: writes `.grymbl/report.html` and opens it (last 30 days; `--days 7`, `--all`, `--no-open`) |
 | `grymbl test -- pytest` | Run tests through Grymbl (also `npx jest`, `go test ./...`) |
 | `grymbl init` | Set up a project (safe to re-run) |
 | `grymbl shell-hook <shell>` | Print a terminal hook |
@@ -125,6 +126,7 @@ quiet except for warnings, AI-call token counts, and problems. Stop it with **Ct
 
 | Where | What's there |
 |---|---|
+| `grymbl report` | Everything, systematically: charts, warnings, every episode's full timeline, hotspots, assumptions, cost ([details](03_how_it_works.md#the-report)) |
 | `.grymbl/interventions.md` | Every warning, with time, episode, files, and reason |
 | `grymbl status` | Episodes and their summaries |
 | The watcher's window | Warnings and per-call token usage as they happen |
@@ -142,6 +144,8 @@ quiet except for warnings, AI-call token counts, and problems. Stop it with **Ct
 - **Budget estimate:** 5 CAD (≈ US$3.60) lasts about a month even if the cap is hit daily with
   small episodes, and much longer in normal use. The theoretical worst case (every call at the
   evidence cap) is about 1.5 days.
+- **In the report:** `grymbl report` shows cost per day and in total, from the saved per-call
+  records.
 - **Ground truth:** the Anthropic Console's usage page.
 
 To change the cap or effort, see [Developing: change a setting](06_developing.md#change-a-setting-time-windows-thresholds-cost-caps).

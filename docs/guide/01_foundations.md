@@ -323,7 +323,7 @@ fast, and predictable.
 **Analogy.** A fire drill. You check that everything works under controlled conditions, often,
 and cheaply, instead of waiting for a real fire.
 
-**In Grymbl.** 96 tests, run with **pytest**. Sonnet is replaced by a fake that returns a
+**In Grymbl.** Over 100 tests, run with **pytest**. Sonnet is replaced by a fake that returns a
 fixed answer. Whenever a bug is found, a test is added so it can't quietly return. See
 [Developing](06_developing.md#writing-tests).
 

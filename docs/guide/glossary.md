@@ -83,6 +83,10 @@ A language translated ahead of time into machine code, for speed (Go, Rust). Com
 ### Concurrency
 Several things happening at overlapping times. → [F: Concurrency threads and queues](01_foundations.md#concurrency-threads-and-queues)
 
+### Content-Security-Policy
+A browser security header telling a page what it may load or contact. Grymbl's report sets it to
+forbid all network requests. → [H: The report](03_how_it_works.md#the-report)
+
 ### Context event
 In Grymbl, a command, test run, or push. These describe what you're doing now, so they join the
 active episode even without a file link. → [H: Episodes](03_how_it_works.md#which-episode-does-an-event-join)
@@ -476,7 +480,7 @@ The window where you type commands; the shell runs inside it.
 → [F: The terminal and the shell](01_foundations.md#the-terminal-and-the-shell)
 
 ### Test suite
-All of a project's automated tests together. Grymbl's has 96.
+All of a project's automated tests together. Grymbl's has over 100.
 → [F: Automated tests and fakes](01_foundations.md#automated-tests-and-fakes)
 
 ### Thread
