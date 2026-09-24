@@ -24,6 +24,14 @@ MAX_EVIDENCE_CHARS = 100_000
 MAX_HISTORY = 10
 TRIM_MARKER = "\n[... {n} characters trimmed by grymbl to cap cost ...]"
 
+# US$ per million tokens (input, output). Each call's cost is stored when it's made, so
+# history keeps the price that applied at the time even if this table changes.
+PRICES_PER_MTOK: dict[str, tuple[float, float]] = {
+    "claude-sonnet-5": (2.0, 10.0),
+    "claude-haiku-4-5": (1.0, 5.0),
+    "claude-opus-5": (5.0, 25.0),
+}
+
 EVIDENCE_RULE = (
     "Only state a decision, assumption, or risk if the episode's diff, commit messages, and "
     "file history directly support it. If the evidence is thin - a change with no clear "
@@ -73,8 +81,34 @@ class EpisodeEvidence:
     history: Sequence[PriorEpisode]
 
 
+@dataclass(frozen=True)
+class Usage:
+    model: str
+    input_tokens: int
+    output_tokens: int
+
+    @property
+    def cost_usd(self) -> float | None:
+        """Cost at current list prices, or None for a model missing from the price table."""
+        prices = PRICES_PER_MTOK.get(self.model)
+        if prices is None:
+            return None
+        return (self.input_tokens * prices[0] + self.output_tokens * prices[1]) / 1_000_000
+
+
+@dataclass(frozen=True)
+class AnalystResult:
+    """The analysis (None if the call failed or was refused) and the tokens it billed."""
+
+    analysis: EpisodeAnalysis | None
+    usage: Usage | None
+
+
+NO_RESULT = AnalystResult(analysis=None, usage=None)
+
+
 class Analyst(Protocol):
-    def analyze(self, evidence: EpisodeEvidence) -> EpisodeAnalysis | None: ...
+    def analyze(self, evidence: EpisodeEvidence) -> AnalystResult: ...
 
 
 class SonnetAnalyst:
@@ -84,10 +118,10 @@ class SonnetAnalyst:
         self._client = anthropic.Anthropic()
         self._has_credentials = True
 
-    def analyze(self, evidence: EpisodeEvidence) -> EpisodeAnalysis | None:
-        """Ask Sonnet about one episode; None if the call fails or is refused."""
+    def analyze(self, evidence: EpisodeEvidence) -> AnalystResult:
+        """Ask Sonnet about one episode. Failures return no analysis and never raise."""
         if not self._has_credentials:
-            return None
+            return NO_RESULT
         try:
             response = self._client.messages.parse(
                 model=self._model,
@@ -103,13 +137,13 @@ class SonnetAnalyst:
                 raise
             log.error("No Anthropic credentials; escalations are recorded without analysis")
             self._has_credentials = False
-            return None
+            return NO_RESULT
         except anthropic.AuthenticationError:
             log.error("Anthropic credentials missing or invalid; set ANTHROPIC_API_KEY")
-            return None
+            return NO_RESULT
         except anthropic.RateLimitError:
             log.warning("Rate limited analysing episode %s", evidence.episode_id)
-            return None
+            return NO_RESULT
         except anthropic.APIStatusError as error:
             log.warning(
                 "API error %s analysing episode %s: %s",
@@ -117,21 +151,22 @@ class SonnetAnalyst:
                 evidence.episode_id,
                 error.message,
             )
-            return None
+            return NO_RESULT
         except anthropic.APIConnectionError:
             log.warning("Network error analysing episode %s", evidence.episode_id)
-            return None
+            return NO_RESULT
 
+        usage = Usage(self._model, response.usage.input_tokens, response.usage.output_tokens)
         log.info(
             "Sonnet analysed episode %s: %d input, %d output tokens",
             evidence.episode_id,
-            response.usage.input_tokens,
-            response.usage.output_tokens,
+            usage.input_tokens,
+            usage.output_tokens,
         )
         if response.stop_reason == "refusal":
             log.warning("Model declined episode %s", evidence.episode_id)
-            return None
-        return response.parsed_output
+            return AnalystResult(analysis=None, usage=usage)
+        return AnalystResult(analysis=response.parsed_output, usage=usage)
 
 
 def render_evidence(evidence: EpisodeEvidence, max_chars: int = MAX_EVIDENCE_CHARS) -> str:

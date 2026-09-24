@@ -28,12 +28,20 @@ _CONTAINER_DIRS = frozenset({"src", "lib", "app", "apps", "packages", "pkg", "in
 _ROOT_MODULE = "."
 
 
+# Stable identifiers for the four rules, stored per episode for reporting.
+PRIOR_HISTORY = "prior_history"
+FAIL_RETRY_PASS = "fail_retry_pass"
+MULTIPLE_MODULES = "multiple_modules"
+DELETED_LOGIC = "deleted_logic"
+
+
 @dataclass(frozen=True)
 class Triage:
     escalate: bool
     reasons: tuple[str, ...]
     had_deletion: bool
     had_fail_retry_pass: bool
+    rules: tuple[str, ...] = ()
 
 
 def triage(
@@ -46,20 +54,21 @@ def triage(
     fail_retry_pass = had_fail_retry_pass(events)
     modules = modules_touched(files)
 
-    reasons: list[str] = []
+    fired: list[tuple[str, str]] = []
     if with_history := sorted(files & prior_escalated_files):
-        reasons.append(f"prior history on {', '.join(with_history)}")
+        fired.append((PRIOR_HISTORY, f"prior history on {', '.join(with_history)}"))
     if fail_retry_pass:
-        reasons.append("fail -> retry -> pass")
+        fired.append((FAIL_RETRY_PASS, "fail -> retry -> pass"))
     if len(modules) > 1:
-        reasons.append(f"touches multiple modules: {', '.join(sorted(modules))}")
+        fired.append((MULTIPLE_MODULES, f"touches multiple modules: {', '.join(sorted(modules))}"))
     if deletion:
-        reasons.append("deletes existing logic")
+        fired.append((DELETED_LOGIC, "deletes existing logic"))
     return Triage(
-        escalate=bool(reasons),
-        reasons=tuple(reasons),
+        escalate=bool(fired),
+        reasons=tuple(reason for _, reason in fired),
         had_deletion=deletion,
         had_fail_retry_pass=fail_retry_pass,
+        rules=tuple(rule for rule, _ in fired),
     )
 
 

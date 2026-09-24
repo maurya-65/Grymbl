@@ -10,7 +10,7 @@ from grymbl.correlate import OpenEpisode, choose_episode, expired
 from grymbl.interventions import InterventionSink
 from grymbl.jev import Triage, triage
 from grymbl.reasoning import Analyst, EpisodeAnalysis, EpisodeEvidence
-from grymbl.store import ClosedEpisode, Store, new_episode_id
+from grymbl.store import ClosedEpisode, ModelCall, Store, new_episode_id
 
 log = logging.getLogger(__name__)
 
@@ -49,10 +49,9 @@ class Pipeline:
             self._settings.deletion_threshold,
         )
         analysis = self._analyze(episode, decision, files, now) if decision.escalate else None
-        if analysis is not None and analysis.intervention:
-            self._sink.deliver(
-                episode.episode_id, now, files, decision.reasons, analysis.intervention
-            )
+        intervention = analysis.intervention if analysis is not None else None
+        if intervention:
+            self._sink.deliver(episode.episode_id, now, files, decision.reasons, intervention)
 
         self._store.close_episode(
             ClosedEpisode(
@@ -64,6 +63,9 @@ class Pipeline:
                 files=files,
                 agent=episode.agent,
                 intent=episode.intent,
+                jev_rules=decision.rules,
+                jev_reasons=decision.reasons,
+                intervention=intervention or None,
             )
         )
         if analysis is not None and analysis.assumptions:
@@ -84,7 +86,7 @@ class Pipeline:
             )
             return None
         self._store.count_call(day)
-        return self._analyst.analyze(
+        result = self._analyst.analyze(
             EpisodeEvidence(
                 episode_id=episode.episode_id,
                 developer=episode.developer,
@@ -93,3 +95,15 @@ class Pipeline:
                 history=self._store.history_for(files, episode.episode_id),
             )
         )
+        if result.usage is not None:
+            self._store.record_model_call(
+                ModelCall(
+                    episode_id=episode.episode_id,
+                    timestamp=now,
+                    model=result.usage.model,
+                    input_tokens=result.usage.input_tokens,
+                    output_tokens=result.usage.output_tokens,
+                    cost_usd=result.usage.cost_usd,
+                )
+            )
+        return result.analysis

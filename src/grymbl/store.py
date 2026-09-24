@@ -38,7 +38,10 @@ CREATE TABLE IF NOT EXISTS episodes (
     escalated           INTEGER NOT NULL DEFAULT 0,
     status              TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
     agent               TEXT,  -- coding agent that did the work; NULL for human work (v1.1)
-    intent              TEXT   -- redacted prompt that opened an agent episode (v1.1)
+    intent              TEXT,  -- redacted prompt that opened an agent episode (v1.1)
+    jev_rules           TEXT,  -- JSON list of rule ids that fired, e.g. ["fail_retry_pass"]
+    jev_reasons         TEXT,  -- JSON list of the same, as readable reasons
+    intervention        TEXT   -- the warning delivered for this episode, if any
 );
 
 CREATE TABLE IF NOT EXISTS events (
@@ -73,6 +76,17 @@ CREATE TABLE IF NOT EXISTS assumptions (
         CHECK (current_validity IN ('valid', 'unverified', 'contradicted'))
 );
 
+-- One row per model call: what it cost, priced when it was made.
+CREATE TABLE IF NOT EXISTS model_calls (
+    call_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    episode_id    TEXT NOT NULL REFERENCES episodes (episode_id),
+    ts            TEXT NOT NULL,
+    model         TEXT NOT NULL,
+    input_tokens  INTEGER NOT NULL,
+    output_tokens INTEGER NOT NULL,
+    cost_usd      REAL
+);
+
 -- Last known content per file: the dedup baseline, and the "before" side of diffs.
 CREATE TABLE IF NOT EXISTS file_snapshots (
     file_path    TEXT PRIMARY KEY,
@@ -82,7 +96,9 @@ CREATE TABLE IF NOT EXISTS file_snapshots (
 """
 
 # Columns added after v1, applied to databases created before them.
-_ADDED_COLUMNS = {"episodes": ("agent", "intent")}
+_ADDED_COLUMNS = {
+    "episodes": ("agent", "intent", "jev_rules", "jev_reasons", "intervention"),
+}
 
 
 @dataclass(frozen=True)
@@ -101,6 +117,9 @@ class ClosedEpisode:
     files: tuple[str, ...]
     agent: str | None = None
     intent: str | None = None
+    jev_rules: tuple[str, ...] = ()
+    jev_reasons: tuple[str, ...] = ()
+    intervention: str | None = None
 
 
 @dataclass(frozen=True)
@@ -118,12 +137,26 @@ class EpisodeRow:
     episode_id: str
     timestamp_start: datetime
     timestamp_end: datetime
+    developer: str
     status: str
     escalated: bool
     summary: str | None
     files: tuple[str, ...]
     agent: str | None
     intent: str | None
+    jev_rules: tuple[str, ...]
+    jev_reasons: tuple[str, ...]
+    intervention: str | None
+
+
+@dataclass(frozen=True)
+class ModelCall:
+    episode_id: str
+    timestamp: datetime
+    model: str
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float | None
 
 
 class Store:
@@ -276,8 +309,8 @@ class Store:
         with self._tx() as conn:
             conn.execute(
                 "UPDATE episodes SET status = 'closed', summary = ?, had_deletion = ?, "
-                "had_fail_retry_pass = ?, escalated = ?, agent = ?, intent = ? "
-                "WHERE episode_id = ?",
+                "had_fail_retry_pass = ?, escalated = ?, agent = ?, intent = ?, "
+                "jev_rules = ?, jev_reasons = ?, intervention = ? WHERE episode_id = ?",
                 (
                     episode.summary,
                     episode.had_deletion,
@@ -285,6 +318,9 @@ class Store:
                     episode.escalated,
                     episode.agent,
                     episode.intent,
+                    json.dumps(list(episode.jev_rules)),
+                    json.dumps(list(episode.jev_reasons)),
+                    episode.intervention,
                     episode.episode_id,
                 ),
             )
@@ -342,20 +378,70 @@ class Store:
         rows = self._conn.execute(
             "SELECT * FROM episodes ORDER BY timestamp_start DESC LIMIT ?", (limit,)
         ).fetchall()
+        return [self._episode_row(row) for row in rows]
+
+    def episodes_since(self, since: datetime | None) -> list[EpisodeRow]:
+        """Episodes that started at or after `since` (all when None), oldest first."""
+        rows = self._conn.execute(
+            "SELECT * FROM episodes WHERE timestamp_start >= ? ORDER BY timestamp_start",
+            (since.isoformat() if since else "",),
+        ).fetchall()
+        return [self._episode_row(row) for row in rows]
+
+    def assumptions_for(self, episode_id: str) -> tuple[tuple[str, Validity], ...]:
+        return self._assumptions(episode_id)
+
+    # --- model calls ------------------------------------------------------
+
+    def record_model_call(self, call: ModelCall) -> None:
+        with self._tx() as conn:
+            conn.execute(
+                "INSERT INTO model_calls "
+                "(episode_id, ts, model, input_tokens, output_tokens, cost_usd) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    call.episode_id,
+                    call.timestamp.isoformat(),
+                    call.model,
+                    call.input_tokens,
+                    call.output_tokens,
+                    call.cost_usd,
+                ),
+            )
+
+    def model_calls_since(self, since: datetime | None) -> list[ModelCall]:
+        rows = self._conn.execute(
+            "SELECT * FROM model_calls WHERE ts >= ? ORDER BY ts",
+            (since.isoformat() if since else "",),
+        ).fetchall()
         return [
-            EpisodeRow(
+            ModelCall(
                 episode_id=row["episode_id"],
-                timestamp_start=datetime.fromisoformat(row["timestamp_start"]),
-                timestamp_end=datetime.fromisoformat(row["timestamp_end"]),
-                status=row["status"],
-                escalated=bool(row["escalated"]),
-                summary=row["summary"],
-                files=self._episode_files(row["episode_id"]),
-                agent=row["agent"],
-                intent=row["intent"],
+                timestamp=datetime.fromisoformat(row["ts"]),
+                model=row["model"],
+                input_tokens=row["input_tokens"],
+                output_tokens=row["output_tokens"],
+                cost_usd=row["cost_usd"],
             )
             for row in rows
         ]
+
+    def _episode_row(self, row: sqlite3.Row) -> EpisodeRow:
+        return EpisodeRow(
+            episode_id=row["episode_id"],
+            timestamp_start=datetime.fromisoformat(row["timestamp_start"]),
+            timestamp_end=datetime.fromisoformat(row["timestamp_end"]),
+            developer=row["developer"],
+            status=row["status"],
+            escalated=bool(row["escalated"]),
+            summary=row["summary"],
+            files=self._episode_files(row["episode_id"]),
+            agent=row["agent"],
+            intent=row["intent"],
+            jev_rules=tuple(json.loads(row["jev_rules"] or "[]")),
+            jev_reasons=tuple(json.loads(row["jev_reasons"] or "[]")),
+            intervention=row["intervention"],
+        )
 
     def _episode_files(self, episode_id: str) -> tuple[str, ...]:
         rows = self._conn.execute(

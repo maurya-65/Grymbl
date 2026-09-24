@@ -6,12 +6,17 @@ import sqlite3
 from collections.abc import Sequence
 from datetime import datetime
 
+import pytest
+
 from grymbl.config import Settings
 from grymbl.events import EventKind
 from grymbl.pipeline import Pipeline
-from grymbl.reasoning import EpisodeAnalysis, EpisodeEvidence
+from grymbl.reasoning import AnalystResult, EpisodeAnalysis, EpisodeEvidence, Usage
 from grymbl.store import Snapshot, Store
 from tests.helpers import agent_event, at, change, ran_tests
+
+# 1,000 input + 200 output tokens on Sonnet 5 = US$0.004.
+FAKE_USAGE = Usage("claude-sonnet-5", 1_000, 200)
 
 
 class FakeAnalyst:
@@ -19,14 +24,15 @@ class FakeAnalyst:
         self.intervention = intervention
         self.seen: list[EpisodeEvidence] = []
 
-    def analyze(self, evidence: EpisodeEvidence) -> EpisodeAnalysis | None:
+    def analyze(self, evidence: EpisodeEvidence) -> AnalystResult:
         self.seen.append(evidence)
-        return EpisodeAnalysis(
+        analysis = EpisodeAnalysis(
             evidence="sufficient",
             summary=f"summary of {evidence.episode_id}",
             assumptions=["auth tokens expire after 1h"],
             intervention=self.intervention,
         )
+        return AnalystResult(analysis=analysis, usage=FAKE_USAGE)
 
 
 class RecordingSink:
@@ -135,3 +141,31 @@ def test_store_migrates_databases_created_before_v1_1(settings: Settings) -> Non
     with Store(settings.db_path) as store:
         [episode] = store.recent_episodes(1)
     assert (episode.episode_id, episode.agent, episode.intent) == ("old", None, None)
+
+
+def test_escalation_records_rules_warning_and_cost(store: Store, settings: Settings) -> None:
+    analyst = FakeAnalyst(intervention="Check token expiry.")
+    pipeline = Pipeline(store, settings, analyst, RecordingSink())
+    store.add_event(change("app/auth.py", 0, added=0, removed=5))
+    pipeline.tick(at(30))
+
+    [episode] = store.recent_episodes(5)
+    assert episode.jev_rules == ("deleted_logic",)
+    assert episode.jev_reasons == ("deletes existing logic",)
+    assert episode.intervention == "Check token expiry."
+    [call] = store.model_calls_since(None)
+    assert (call.episode_id, call.input_tokens, call.output_tokens) == (
+        episode.episode_id,
+        1_000,
+        200,
+    )
+    assert call.cost_usd == pytest.approx(0.004)
+
+
+def test_routine_episode_records_no_rules_and_no_cost(store: Store, settings: Settings) -> None:
+    pipeline = Pipeline(store, settings, FakeAnalyst(), RecordingSink())
+    store.add_event(change("app/auth.py", 0))
+    pipeline.tick(at(30))
+    [episode] = store.recent_episodes(5)
+    assert (episode.jev_rules, episode.intervention) == ((), None)
+    assert store.model_calls_since(None) == []
