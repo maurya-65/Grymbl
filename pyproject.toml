@@ -1,0 +1,39 @@
+[project]
+name = "grymbl"
+version = "0.1.0"
+description = "Local judgment layer: watches dev activity, stays silent, intervenes only with evidence."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=1.8",
+    "pydantic>=2.9",
+    "watchdog>=6.0",
+]
+
+[project.scripts]
+grymbl = "grymbl.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.15",
+    "pytest>=8.3",
+    "ruff>=0.11",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "PTH", "C4", "RET"]
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
