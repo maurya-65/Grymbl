@@ -107,6 +107,12 @@ class SonnetAnalyst:
             log.warning("Network error analysing episode %s", evidence.episode_id)
             return None
 
+        log.info(
+            "Sonnet analysed episode %s: %d input, %d output tokens",
+            evidence.episode_id,
+            response.usage.input_tokens,
+            response.usage.output_tokens,
+        )
         if response.stop_reason == "refusal":
             log.warning("Model declined episode %s", evidence.episode_id)
             return None
