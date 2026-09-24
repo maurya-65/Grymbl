@@ -36,6 +36,14 @@ is thin, it says so rather than guessing.
 > **Status:** v1 prototype (spec: `docs/prototype_plan.md`). The local Python agent uses SQLite
 > storage and runs with zero infrastructure.
 
+## Documentation
+
+- **[How Grymbl Works](docs/how_grymbl_works.md)**: the whole system explained from scratch,
+  with a glossary.
+- **[Tech Stack](docs/tech_stack.md)**: what it's built with, the alternatives, and why.
+- [Prototype plan](docs/prototype_plan.md) and the
+  [v1.1 agent-awareness addendum](docs/v1.1_agent_awareness.md): the specs.
+
 ## How it works
 
 ```
@@ -135,3 +143,8 @@ uv run pytest
 uv run ruff check . && uv run ruff format --check .
 uv run mypy
 ```
+
+## License
+
+Copyright © 2026 Maurya Oganja. All rights reserved. This is proprietary software;
+see [`LICENSE`](LICENSE). No use, copying, or distribution without written permission.
