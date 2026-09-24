@@ -25,7 +25,7 @@ EVIDENCE_RULE = (
 )
 
 SYSTEM_PROMPT = f"""\
-You are the reasoning step of a judgment layer that watches a small team's development \
+You are the reasoning step of a judgment layer that watches a developer's \
 activity. You receive one episode (a group of related file changes, commands, test runs, \
 commits) that a rule-based triage flagged, plus earlier flagged episodes on the same files.
 
