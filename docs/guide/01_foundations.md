@@ -178,7 +178,7 @@ version-control tool. Key words:
 | Term | Meaning |
 |---|---|
 | **Repository** (repo) | A project folder whose history git tracks. The history lives in a hidden `.git` folder inside it |
-| **Commit** | A saved snapshot of the project, with a message ("Fix login timeout") and a unique ID like `3e2d104` |
+| **Commit** | A saved snapshot of the project, with a message ("Fix login timeout") and a unique ID like `23f793e` |
 | **Branch** | A separate line of work, so experiments don't disturb the main version (`main`) |
 | **Working tree** | The files as they are on disk right now, which may include changes not yet committed |
 

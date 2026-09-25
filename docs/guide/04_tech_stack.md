@@ -127,7 +127,7 @@ Every bug became a test. **All four checks must pass before any commit**
 **What it is.** Turning the code into an installable program that gives you a `grymbl` command.
 
 - **`pyproject.toml`** is the standard file describing a Python project: name, version,
-  dependencies, the `grymbl` command's entry point, tool settings, and the license.
+  dependencies, the `grymbl` command's entry point, and tool settings.
 - A **build backend** is the tool that packages the code. We use **hatchling** (modern and
   minimal). The alternative, setuptools, is older and more configuration-heavy.
 - **`uv tool install --editable .`** installs `grymbl` onto your `PATH`. *Editable* means it
@@ -369,7 +369,6 @@ lean start matters (P4), and it adds no dependency (P6).
 |---|---|---|
 | Version control | **git** | The universal standard |
 | Hosting | **GitHub, private** (`maurya-65/Grymbl`) | Backup, history, access control |
-| License | **Proprietary, all rights reserved** ([`LICENSE`](../../LICENSE)) | Solo commercial venture |
 
 ---
 
@@ -408,7 +407,7 @@ From plan §9.2. Each layer is picked for its own constraints:
 | AI | Claude Sonnet 5 via the official SDK; structured output; medium effort; capped |
 | CLI | argparse |
 | Warnings | `.grymbl/interventions.md` + watcher window |
-| Hosting | Private GitHub; proprietary license |
+| Hosting | Private GitHub |
 | Runtime dependencies | 3: `anthropic`, `pydantic`, `watchdog` |
 
 ---

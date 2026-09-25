@@ -46,7 +46,6 @@ Grymbl/
 ├── pyproject.toml             ← project definition, dependencies, tool settings
 ├── uv.lock                    ← exact dependency versions
 ├── README.md                  ← the front page
-├── LICENSE                    ← ownership terms
 └── .gitignore                 ← files git must ignore
 ```
 
@@ -337,7 +336,7 @@ Each module has a matching test file in `tests/`:
 
 | File | Contains |
 |---|---|
-| `pyproject.toml` | Name, version, license, the 3 dependencies, the `grymbl` command entry point (`grymbl.cli:main`), dev tools, and settings for ruff (line length 100, rule sets), mypy (strict), and pytest |
+| `pyproject.toml` | Name, version, the 3 dependencies, the `grymbl` command entry point (`grymbl.cli:main`), dev tools, and settings for ruff (line length 100, rule sets), mypy (strict), and pytest |
 | `uv.lock` | Exact versions of every dependency. Committed; never edited by hand |
 | `.gitignore` | Python caches, `.venv/`, build output, `.grymbl/` |
 

@@ -56,8 +56,3 @@ Most of the time it stays silent, and that is by design.
 | [`../prototype_plan.md`](../prototype_plan.md) | The original locked specification for v1. Chapters here cite it as "plan §N" |
 | [`../v1.1_agent_awareness.md`](../v1.1_agent_awareness.md) | The extension that added AI-agent awareness, and its roadmap |
 | [`../../README.md`](../../README.md) | The repository's front page |
-| [`../../LICENSE`](../../LICENSE) | Ownership and usage terms |
-
----
-
-<sub>Copyright © 2026 Maurya Oganja. All rights reserved. See [`LICENSE`](../../LICENSE).</sub>

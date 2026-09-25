@@ -10,23 +10,23 @@ Everything so far was built on **2026-09-24**, in one working session. Each row 
 
 | Commit | What it added |
 |---|---|
-| `9d86d3b` | Project skeleton: settings, event shape, the plan |
-| `6edeceb` | Secret redaction, content-hash dedup, import scanning |
-| `5e18408` | The SQLite Experience Graph, episode correlation, Jev |
-| `df87f25` | File, terminal, git, and test sensors; the shell hooks |
-| `6fa5fd3` | Sonnet reasoning, the judgment pipeline, the watcher, the CLI. **v1 feature-complete** |
-| `c970a99` | Wording updated for a solo developer |
-| `3e8c15a` | README rewritten around the product |
-| `bfc042e` | v1.1 agent-awareness addendum (the plan for AI-agent capture) |
-| `f13f58e` | Fix: false deletions from atomic saves; single-watcher lock |
-| `9b5a566` | **v1.1 step 1:** Claude Code capture; missing-key crash fixed |
-| `2e06ed2` | Token usage logged per AI call |
-| `bf93755` | Fix: 35-second redaction on long lines |
-| `fb34320` | Cost controls: medium effort, 25 calls/day, evidence cap |
-| `3e2d104` | Proprietary license |
-| `5718e9e` | First documentation (since replaced by this guide) |
-| `20af405` | API error details logged; **first real Sonnet analysis** recorded |
-| `1f2056b` | The complete handover guide |
+| `57b85be` | Project skeleton: settings, event shape, the plan |
+| `21d2d47` | Secret redaction, content-hash dedup, import scanning |
+| `feefc84` | The SQLite Experience Graph, episode correlation, Jev |
+| `173dd99` | File, terminal, git, and test sensors; the shell hooks |
+| `5386c5f` | Sonnet reasoning, the judgment pipeline, the watcher, the CLI. **v1 feature-complete** |
+| `a024cb1` | Wording updated for a solo developer |
+| `009f023` | README rewritten around the product |
+| `d7a996d` | v1.1 agent-awareness addendum (the plan for AI-agent capture) |
+| `41d7aaf` | Fix: false deletions from atomic saves; single-watcher lock |
+| `75706d8` | **v1.1 step 1:** Claude Code capture; missing-key crash fixed |
+| `72bcd3e` | Token usage logged per AI call |
+| `c0f6bfa` | Fix: 35-second redaction on long lines |
+| `33ef19f` | Cost controls: medium effort, 25 calls/day, evidence cap |
+| `23f793e` | Proprietary license (since removed) |
+| `3ed66ea` | First documentation (since replaced by this guide) |
+| `b46a85b` | API error details logged; **first real Sonnet analysis** recorded |
+| `b3fea94` | The complete handover guide |
 | *(next)* | `grymbl report` (local HTML view) and saved token usage |
 
 Run `git log` for the full messages, which explain the *why* of each change.
@@ -90,7 +90,7 @@ changes behaviour, and each is worth knowing before changing it.
 
 | # | Decision | Alternatives | Why |
 |---|---|---|---|
-| D29 | Proprietary license, "Copyright 2026 Maurya Oganja, all rights reserved" | Open source | Solo commercial venture |
+| D29 | No license file (a proprietary one was added in `23f793e`, then removed) | Open source, proprietary | The owner's preference |
 | D30 | Private GitHub repo | Public | Proprietary |
 | D31 | A local HTML **report** file, not a dashboard server or hosted page | CLI-only views; a live local server; a Next.js dashboard | Enough to evaluate the prototype; zero infrastructure; nothing leaves the machine. The Next.js dashboard stays at scale (plan §9.2) |
 | D32 | The report blocks all network access (CSP) and inserts text only via `textContent` | Trusting the data | Diffs and prompts are untrusted content |

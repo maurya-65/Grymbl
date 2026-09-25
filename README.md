@@ -158,8 +158,3 @@ uv run pytest
 uv run ruff check . && uv run ruff format --check .
 uv run mypy
 ```
-
-## License
-
-Copyright © 2026 Maurya Oganja. All rights reserved. This is proprietary software;
-see [`LICENSE`](LICENSE). No use, copying, or distribution without written permission.
